@@ -136,11 +136,29 @@ vgui.Register("SyperEditorLine", Line, "Panel")
 local Act = {}
 
 function Act.undo(self)
+	if self.history_pointer == 0 then return end
 	
+	local his = self.history[self.history_pointer]
+	self.carets = his[1]
+	for _, v in ipairs(his[2]) do
+		v[1](self, v[3], v[4], v[5])
+	end
+	
+	self.history_pointer = self.history_pointer - 1
+	self:Rebuild()
 end
 
 function Act.redo(self)
+	if self.history_pointer == #self.history then return end
 	
+	self.history_pointer = self.history_pointer + 1
+	local his = self.history[self.history_pointer]
+	self.carets = his[1]
+	for _, v in ipairs(his[2]) do
+		v[2](self, v[3], v[4], v[6])
+	end
+	
+	self:Rebuild()
 end
 
 function Act.copy(self)
@@ -343,6 +361,7 @@ function Editor:Init()
 	-- self.content = "" --"blahмblah"
 	self.content_lines = {{"\3", 0}}
 	self.history = {}
+	self.history_pointer = 0
 	self.data = {}
 	self.lines = {}
 	self.carets = {}
@@ -463,8 +482,19 @@ function Editor:OnTextChanged()
 	self.textentry:SetText("")
 	
 	if ignore_chars[str] then return end
+	if #str == 0 then return end
 	
-	self:RemoveSelection()
+	local selection = false
+	for _, caret in ipairs(self.carets) do
+		if caret.select_x then
+			selection = true
+			break
+		end
+	end
+	if selection then
+		self:RemoveSelection()
+	end
+	
 	self:InsertStr(str)
 end
 
@@ -508,7 +538,7 @@ function Editor:Rebuild()
 		self.lines[i] = line
 	end
 	
-	print(SysTime() - t)
+	print("rebuild", SysTime() - t)
 end
 
 function Editor:SetSyntax(syntax)
@@ -601,11 +631,16 @@ function Editor:MoveCaret(i, x, y)
 end
 
 function Editor:InsertStr(str)
-	local t = SysTime()
+	local carets, history = table.Copy(self.carets), {}
 	for _, caret in ipairs(self.carets) do
+		history[#history + 1] = {Editor.RemoveStrAt, Editor.InsertStrAt, caret.x, caret.y, len(str), str}
 		self:InsertStrAt(caret.x, caret.y, str)
 	end
-	print(SysTime() - t)
+	self.history_pointer = self.history_pointer + 1
+	self.history[self.history_pointer] = {carets, history}
+	for i = self.history_pointer + 1, #self.history do
+		self.history[i] = nil
+	end
 	
 	-- currently just rebuild everything to test
 	self:Rebuild()
@@ -622,7 +657,6 @@ function Editor:InsertStrAt(x, y, str)
 	end
 	local cs = self.content_lines
 	local e = y + line_count
-	-- if not cs[e] then cs[e] = {"", 0} end
 	local eo = cs[y][1]
 	cs[y][1] = sub(cs[y][1], 1, x - 1) .. lines[1]
 	cs[y][2] = len(cs[y][1])
@@ -643,12 +677,18 @@ function Editor:InsertStrAt(x, y, str)
 end
 
 function Editor:RemoveStr(length)
+	local history = {}
 	for caret_id, caret in ipairs(self.carets) do
-		local rem = self:RemoveStrAt(caret.x, caret.y, length)
+		local rem, x, y, rem_str = self:RemoveStrAt(caret.x, caret.y, length)
+		history[#history + 1] = {Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem_str, rem}
 		if length < 0 then
-			print(rem)
 			self:MoveCaret(caret_id, -rem, nil)
 		end
+	end
+	self.history_pointer = self.history_pointer + 1
+	self.history[self.history_pointer] = {table.Copy(self.carets), history}
+	for i = self.history_pointer + 1, #self.history do
+		self.history[i] = nil
 	end
 	
 	-- currently just rebuild everything to test
@@ -656,6 +696,7 @@ function Editor:RemoveStr(length)
 end
 
 function Editor:RemoveSelection()
+	local history = {}
 	local cs = self.content_lines
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_x then
@@ -676,12 +717,18 @@ function Editor:RemoveSelection()
 				length = length + ex - 1
 			end
 			
-			self:RemoveStrAt(sx, sy, length)
+			local rem, x, y, rem_str = self:RemoveStrAt(sx, sy, length)
+			history[#history + 1] = {Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem_str, rem}
 			self:SetCaret(caret_id, sx, sy)
 			
 			caret.select_x = nil
 			caret.select_y = nil
 		end
+	end
+	self.history_pointer = self.history_pointer + 1
+	self.history[self.history_pointer] = {table.Copy(self.carets), history}
+	for i = self.history_pointer + 1, #self.history do
+		self.history[i] = nil
 	end
 	
 	-- currently just rebuild everything to test
@@ -690,6 +737,7 @@ end
 
 function Editor:RemoveStrAt(x, y, length)
 	local cs = self.content_lines
+	local rem = {}
 	local length_org = length
 	length = math.abs(length)
 	
@@ -712,6 +760,7 @@ function Editor:RemoveStrAt(x, y, length)
 		if not cs[y] then break end
 		
 		local org = cs[y][2]
+		rem[#rem + 1] = sub(cs[y][1], x, x + length - 1)
 		local str = sub(cs[y][1], 1, x - 1) .. sub(cs[y][1], x + length)
 		cs[y][1] = str
 		cs[y][2] = len(str)
@@ -726,7 +775,7 @@ function Editor:RemoveStrAt(x, y, length)
 		if i == 4096 then print("!!! Syper: Editor:RemoveStrAt") break end
 	end
 	
-	return math.abs(length_org) - length
+	return math.abs(length_org) - length, x, y, table.concat(rem, "")
 end
 
 vgui.Register("SyperEditor", Editor, "Panel")
