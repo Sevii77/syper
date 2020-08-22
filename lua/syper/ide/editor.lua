@@ -239,7 +239,7 @@ function Act.move(self, typ, count_dir, selc)
 				if caret.x == 1 then
 					if caret.y == 1 then goto SKIP end
 					
-					self:SetCaret(caret_id, lines[caret.y].len_char + 1, caret.y - 1)
+					self:SetCaret(caret_id, lines[caret.y - 1].len_char + 1, caret.y - 1)
 					
 					goto SKIP
 				end
