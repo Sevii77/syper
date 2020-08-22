@@ -122,7 +122,12 @@ function Lexer.tokenize(lexer, code, max_lines, data_override, start_line, start
 	if last.stop == #code then
 		local tok = last.tokens[#last.tokens]
 		if string.sub(tok.text, -1, -1) == "\n" then
-			last.tokens[#last.tokens] = nil
+			if #tok.text == 1 then
+				last.tokens[#last.tokens] = nil
+			else
+				tok.text = string.sub(tok.text, 1, -2)
+			end
+			last.stop = last.stop - 1
 		end
 	end
 	
