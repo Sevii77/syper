@@ -143,16 +143,6 @@ function Act.copy(self)
 	
 	for _, caret in ipairs(self.carets) do
 		if caret.select_x then
-			-- local p1 = self:Get1DFrom2DPos(caret.x, caret.y)
-			-- local p2 = self:Get1DFrom2DPos(caret.select_x, caret.select_y)
-			
-			-- if p2 < p1 then
-			-- 	local p1_ = p1
-			-- 	p1 = p2
-			-- 	p2 = p1_
-			-- end
-			
-			-- -- str = str .. sub(self.content, p1, p2 - 1)
 			local sx, sy = caret.x, caret.y
 			local ex, ey = caret.select_x, caret.select_y
 			
@@ -242,8 +232,8 @@ function Act.move(self, typ, count_dir, selc)
 					goto SKIP
 				end
 				
-				local s, e = string.find(sub(line, caret.x), "[^%w_]*[%w_]+")
-				self:SetCaret(caret_id, s and (e + caret.x) or (ll + 1), nil)
+				local e = select(2, string.find(sub(line, caret.x), "[^%w_]*[%w_]+"))
+				self:SetCaret(caret_id, e and (e + caret.x) or (ll + 1), nil)
 			else
 				local line = lines[caret.y].str
 				if caret.x == 1 then
@@ -254,7 +244,7 @@ function Act.move(self, typ, count_dir, selc)
 					goto SKIP
 				end
 				
-				local s, e = string.find(sub(line, 1, caret.x - 1), "[%w_]*[^%w_]*$")
+				local s = string.find(sub(line, 1, caret.x - 1), "[%w_]*[^%w_]*$")
 				self:SetCaret(caret_id, s, nil)
 			end
 			
@@ -262,7 +252,10 @@ function Act.move(self, typ, count_dir, selc)
 		elseif typ == "line" then
 			self:MoveCaret(caret_id, nil, count_dir)
 		elseif typ == "bol" then
-			
+			local e = select(2, string.find(lines[caret.y].str, "^%s*")) + 1
+			if caret.x ~= e or caret.x ~= 1 then
+				self:SetCaret(caret_id, caret.x == e and 1 or e, nil)
+			end
 		elseif typ == "eol" then
 			self:SetCaret(caret_id, lines[caret.y].len_char)
 		elseif typ == "bof" then
@@ -553,11 +546,7 @@ function Editor:InsertStrAt(x, y, str)
 	for i = y + 1, e do
 		table.insert(cs, i, lines[i - y + 1])
 	end
-	if e == y then
-		cs[e] = cs[e] .. sub(eo, x)
-	else
-		cs[e] = cs[e] .. eo
-	end
+	cs[e] = cs[e] .. (e == y and sub(eo, x) or eo)
 	
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.y > y then
