@@ -149,7 +149,7 @@ function Act.copy(self)
 		str[#str + 1] = s
 	end
 	
-	for _, caret in ipairs(self.carets) do
+	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_x then
 			local sx, sy = caret.x, caret.y
 			local ex, ey = caret.select_x, caret.select_y
@@ -169,6 +169,10 @@ function Act.copy(self)
 			if sy ~= ey then
 				add(sub(self.content_lines[ey][1], 1, ex - 1))
 			end
+		end
+		
+		if caret_id ~= #self.carets then
+			add("\n")
 		end
 	end
 	
@@ -233,9 +237,24 @@ end
 function Act.move(self, typ, count_dir, selc)
 	local lines = self.content_lines
 	
+	local function handleSelect(caret)
+		if selc then
+			if not caret.select_x then
+				caret.select_x = caret.x
+				caret.select_y = caret.y
+			end
+		elseif caret.select_x then
+			caret.select_x = nil
+			caret.select_y = nil
+		end
+	end
+	
 	for caret_id, caret in ipairs(self.carets) do
 		if typ == "char" then
-			if not selc and caret.select_x then
+			if selc and not caret.select_x then
+				caret.select_x = caret.x
+				caret.select_y = caret.y
+			elseif not selc and caret.select_x then
 				local sx, sy = caret.x, caret.y
 				local ex, ey = caret.select_x, caret.select_y
 				
@@ -250,10 +269,15 @@ function Act.move(self, typ, count_dir, selc)
 				else
 					self:SetCaret(caret_id, ex, ey)
 				end
+				
+				caret.select_x = nil
+				caret.select_y = nil
 			else
 				self:MoveCaret(caret_id, count_dir, nil)
 			end
 		elseif typ == "word" then
+			handleSelect(caret)
+			
 			if count_dir > 0 then
 				local line = lines[caret.y][1]
 				local ll = lines[caret.y][2]
@@ -283,28 +307,28 @@ function Act.move(self, typ, count_dir, selc)
 			
 			::SKIP::
 		elseif typ == "line" then
+			handleSelect(caret)
+			
 			self:MoveCaret(caret_id, nil, count_dir)
 		elseif typ == "bol" then
+			handleSelect(caret)
+			
 			local e = select(2, string.find(lines[caret.y][1], "^%s*")) + 1
 			if caret.x ~= e or caret.x ~= 1 then
 				self:SetCaret(caret_id, caret.x == e and 1 or e, nil)
 			end
 		elseif typ == "eol" then
+			handleSelect(caret)
+			
 			self:SetCaret(caret_id, lines[caret.y][2])
 		elseif typ == "bof" then
+			handleSelect(caret)
+			
 			self:SetCaret(caret_id, 1, 1)
 		elseif typ == "eof" then
+			handleSelect(caret)
+			
 			self:SetCaret(caret_id, lines[#lines][2], #lines)
-		end
-		
-		if selc then
-			if not caret.select_x then
-				caret.select_x = caret.x
-				caret.select_y = caret.y
-			end
-		elseif caret.select_x then
-			caret.select_x = nil
-			caret.select_y = nil
 		end
 	end
 	
@@ -318,6 +342,7 @@ local Editor = {Act = Act}
 function Editor:Init()
 	-- self.content = "" --"blahмblah"
 	self.content_lines = {{"\3", 0}}
+	self.history = {}
 	self.data = {}
 	self.lines = {}
 	self.carets = {}

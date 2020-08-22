@@ -23,4 +23,4 @@ if SERVER then return end
 if not file.Exists("syper", "DATA") then
 	file.CreateDir("syper")
 end
---
+---
