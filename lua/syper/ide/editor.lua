@@ -10,7 +10,7 @@ local function setStringFuncs(settings)
 	sub = settings.utf8 and utf8.sub or string.sub
 end
 
-setStringFuncs(Syper.Settings.settings)
+setStringFuncs(Settings.settings)
 hook.Add("SyperSettings", "syper_editor", setStringFuncs)
 
 ----------------------------------------
@@ -136,23 +136,50 @@ function Act.redo(self)
 end
 
 function Act.copy(self)
-	local str = ""
+	local str = {}
+	local function add(s)
+		str[#str + 1] = s
+	end
+	
 	for _, caret in ipairs(self.carets) do
 		if caret.select_x then
-			local p1 = self:Get1DFrom2DPos(caret.x, caret.y)
-			local p2 = self:Get1DFrom2DPos(caret.select_x, caret.select_y)
+			-- local p1 = self:Get1DFrom2DPos(caret.x, caret.y)
+			-- local p2 = self:Get1DFrom2DPos(caret.select_x, caret.select_y)
 			
-			if p2 < p1 then
-				local p1_ = p1
-				p1 = p2
-				p2 = p1_
+			-- if p2 < p1 then
+			-- 	local p1_ = p1
+			-- 	p1 = p2
+			-- 	p2 = p1_
+			-- end
+			
+			-- -- str = str .. sub(self.content, p1, p2 - 1)
+			local sx, sy = caret.x, caret.y
+			local ex, ey = caret.select_x, caret.select_y
+			
+			if ey < sy or (ex < sx and sy == ey) then
+				local ex_, ey_ = ex, ey
+				ex, ey = sx, sy
+				sx, sy = ex_, ey_
 			end
 			
-			str = str .. sub(self.content, p1, p2 - 1)
+			add(sub(self.content_lines[sy], sx, sy == ey and ex - 1 or -1))
+			
+			for y = sy + 1, ey - 1 do
+				add("\n")
+				add(self.content_lines[y])
+			end
+			
+			if sy ~= ey then
+				add("\n")
+				add(sub(self.content_lines[ey], 1, ex - 1))
+			end
 		end
 	end
 	
-	SetClipboardText(str)
+	timer.Simple(0.1, function()
+		print(table.concat(str, ""))
+		SetClipboardText(table.concat(str, ""))
+	end)
 end
 
 function Act.cut(self)
@@ -173,7 +200,10 @@ function Act.selectall(self)
 	local lines = self.data.lines
 	
 	self:ClearCarets()
-	self:SetCaret(1, lines[#lines].char_length, #lines)
+	self:SetCaret(1, lines[#lines].len_char, #lines)
+	
+	self.carets[1].select_x = 1
+	self.carets[1].select_y = 1
 end
 
 function Act.writestr(self, str)
@@ -251,7 +281,7 @@ local Editor = {Act = Act}
 
 function Editor:Init()
 	-- self.content = "" --"blahмblah"
-	self.content_chunks = {""}
+	self.content_lines = {""}
 	self.data = {}
 	self.lines = {}
 	self.carets = {}
@@ -391,7 +421,7 @@ function Editor:Rebuild()
 	self.lineholder:Clear()
 	self.lines = {}
 	
-	self.data = Lexer.tokenize(self.lexer, table.concat(self.content_chunks, "\n"))
+	self.data = Lexer.tokenize(self.lexer, table.concat(self.content_lines, "\n"))
 	
 	local h = Settings.lookupSetting("font_size")
 	for i, line_data in ipairs(self.data.lines) do
@@ -442,7 +472,7 @@ function Editor:SetCaret(i, x, y)
 	caret.x = x
 	caret.y = y
 	caret.max_x = x
-	caret.visual_x = surface.GetTextSize(getRenderString(sub(self.content_chunks[caret.y], 1, caret.x - 1)))
+	caret.visual_x = surface.GetTextSize(getRenderString(sub(self.content_lines[caret.y], 1, caret.x - 1)))
 end
 
 function Editor:MoveCaret(i, x, y)
@@ -490,7 +520,7 @@ function Editor:MoveCaret(i, x, y)
 		end
 	end
 	
-	caret.visual_x = surface.GetTextSize(getRenderString(sub(self.content_chunks[caret.y], 1, caret.x - 1)))
+	caret.visual_x = surface.GetTextSize(getRenderString(sub(self.content_lines[caret.y], 1, caret.x - 1)))
 end
 
 function Editor:Get1DFrom2DPos(x, y)
@@ -516,12 +546,12 @@ function Editor:InsertStrAt(x, y, str)
 	
 	local lines = string.Split(str, "\n")
 	local line_count = #lines - 1
-	local cs = self.content_chunks
+	local cs = self.content_lines
 	local e = y + line_count
 	local eo = cs[e] or ""
 	cs[y] = sub(cs[y], 1, x - 1) .. lines[1]
 	for i = y + 1, e do
-		table.insert(cs, i, lines[i - y])
+		table.insert(cs, i, lines[i - y + 1])
 	end
 	if e == y then
 		cs[e] = cs[e] .. sub(eo, x)
