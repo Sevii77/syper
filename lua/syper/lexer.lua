@@ -74,7 +74,7 @@ function Lexer.tokenize(lexer, code, max_lines, data_override, start_line, start
 		mode = sline.mode
 		mode_repl = sline.mode_repl
 		curbyte = sline.start - 1
-		curchar = sline.start_char - 1
+		-- curchar = sline.start_char - 1
 		data.lines[start_line] = nil
 		line = sline
 		line.tokens = {}
@@ -83,8 +83,8 @@ function Lexer.tokenize(lexer, code, max_lines, data_override, start_line, start
 		mode = "main"
 		mode_repl = nil
 		curbyte = 1
-		curchar = 1
-		line = {tokens = {}, str = "", mode = mode, mode_repl = mode_repl, start = curbyte, start_char = curchar, stop = -1}
+		-- curchar = 1
+		line = {tokens = {}, str = "", mode = mode, mode_repl = mode_repl, start = curbyte, --[[start_char = curchar,]] stop = -1}
 	end
 	
 	local linestart = start_line or 1
@@ -96,7 +96,7 @@ function Lexer.tokenize(lexer, code, max_lines, data_override, start_line, start
 		line.tokens[#line.tokens + 1] = {token = fdata.pattern[2], text = fdata.str, mode = mode}
 		line.str = line.str .. fdata.str
 		curbyte = fdata.e + 1
-		curchar = curchar + utf8.len(fdata.str)
+		-- curchar = curchar + utf8.len(fdata.str)
 		
 		if fdata.pattern[3] then
 			mode = fdata.pattern[3]
@@ -105,16 +105,24 @@ function Lexer.tokenize(lexer, code, max_lines, data_override, start_line, start
 		end
 		
 		if fdata.str[#fdata.str] == "\n" then
-			line.stop = curbyte
+			line.stop = curbyte - 1
 			line.len = #line.str
 			line.len_char = utf8.len(line.str)
 			data.lines[linecount] = line
-			line = {tokens = {}, str = "", mode = mode, mode_repl = mode_repl, start = curbyte, start_char = curchar}
+			line = {tokens = {}, str = "", mode = mode, mode_repl = mode_repl, start = curbyte, --[[start_char = curchar]]}
 			
 			linecount = linecount + 1
 			if linecount - linestart == max_lines then
 				break
 			end
+		end
+	end
+	
+	local last = data.lines[#data.lines]
+	if last.stop == #code then
+		local tok = last.tokens[#last.tokens]
+		if string.sub(tok.text, -1, -1) == "\n" then
+			last.tokens[#last.tokens] = nil
 		end
 	end
 	
