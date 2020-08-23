@@ -278,6 +278,8 @@ function Act.move(self, typ, count_dir, selc)
 			if selc and not caret.select_x then
 				caret.select_x = caret.x
 				caret.select_y = caret.y
+				
+				self:MoveCaret(caret_id, count_dir, nil)
 			elseif not selc and caret.select_x then
 				local sx, sy = caret.x, caret.y
 				local ex, ey = caret.select_x, caret.select_y
