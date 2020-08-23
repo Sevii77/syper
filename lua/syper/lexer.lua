@@ -85,7 +85,7 @@ function Lexer.tokenize(lexer, content_lines, max_lines, data_override, start_li
 	end
 	
 	local linestart = start_line or 1
-	max_lines = max_lines or (#content_lines - linestart + 1)
+	max_lines = math.min(max_lines or math.huge, (#content_lines - linestart + 1))
 	
 	for k = linestart, linestart + max_lines - 1 do
 		local curbyte_line = 1

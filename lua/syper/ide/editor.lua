@@ -543,7 +543,7 @@ function Editor:Rebuild(line_count, start_line)
 		self.data = Lexer.tokenize(self.lexer, self.content_lines, line_count, self.data, start_line)
 		local lines = self.data.lines
 		local h = Settings.lookupSetting("font_size")
-		for i = start_line, start_line + line_count - 1 do
+		for i = start_line, math.min(#lines, start_line + line_count - 1) do
 			local line = self.lines[i]
 			if not line then
 				line = self.lineholder:Add("SyperEditorLine")
