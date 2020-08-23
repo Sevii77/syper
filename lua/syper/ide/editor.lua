@@ -140,6 +140,9 @@ function Act.undo(self)
 	
 	local his = self.history[self.history_pointer]
 	self.carets = his[1]
+	for caret_id, caret in ipairs(self.carets) do
+		self:SetCaret(caret_id, caret.x, caret.y)
+	end
 	for _, v in ipairs(his[2]) do
 		v[1](self, v[3], v[4], v[5])
 	end
@@ -154,6 +157,9 @@ function Act.redo(self)
 	self.history_pointer = self.history_pointer + 1
 	local his = self.history[self.history_pointer]
 	self.carets = his[1]
+	for caret_id, caret in ipairs(self.carets) do
+		self:SetCaret(caret_id, caret.x, caret.y)
+	end
 	for _, v in ipairs(his[2]) do
 		v[2](self, v[3], v[4], v[6])
 	end
@@ -203,7 +209,7 @@ end
 function Act.cut(self)
 	Act.copy(self)
 	
-	-- TODO: the deleting part
+	self:RemoveSelection()
 end
 
 function Act.paste(self)
@@ -358,7 +364,6 @@ end
 local Editor = {Act = Act}
 
 function Editor:Init()
-	-- self.content = "" --"blahмblah"
 	self.content_lines = {{"\3", 0}}
 	self.history = {}
 	self.history_pointer = 0
@@ -380,7 +385,7 @@ function Editor:Init()
 	self.lineholder:Dock(FILL)
 	self.lineholder:SetMouseInputEnabled(false)
 	
-	self:SetSyntax("text")
+	self:SetSyntax("lua")
 	self:Rebuild()
 	self:AddCaret(1, 1)
 end
@@ -396,7 +401,7 @@ function Editor:PaintOver(w, h)
 	surface.SetTextColor(255, 255, 255, 255)
 	surface.SetFont("syper_syntax_1")
 	-- local cw, ch = surface.GetTextSize(" ")
-	local _, th = surface.GetTextSize(" ")
+	local th = Settings.lookupSetting("font_size")
 	
 	local lines = self.content_lines
 	for _, caret in ipairs(self.carets) do
@@ -513,29 +518,43 @@ function Editor:OnGetFocus()
 	self:RequestFocus()
 end
 
-function Editor:Rebuild()
+function Editor:VisibleLineCount()
+	return math.ceil(select(2, self:GetSize()) / Settings.lookupSetting("font_size"))
+end
+
+function Editor:Rebuild(line_count, start_line)
 	local t = SysTime()
 	
-	local content = {}
-	for i, line in ipairs(self.content_lines) do
-		content[i] = line[1]
-	end
-	content[#content] = string.sub(content[#content], 1, -2)
-	content = table.concat(content, "")
-	
-	self.lineholder:Clear()
-	self.lines = {}
-	
-	self.data = Lexer.tokenize(self.lexer, content)
-	
-	local h = Settings.lookupSetting("font_size")
-	for i, line_data in ipairs(self.data.lines) do
-		local line = self.lineholder:Add("SyperEditorLine")
-		line:SetData(line_data)
-		line:SetHeight(h)
-		line:Dock(TOP)
+	if not line_count then
+		self.lineholder:Clear()
+		self.lines = {}
+		self.data = Lexer.tokenize(self.lexer, self.content_lines)
 		
-		self.lines[i] = line
+		local h = Settings.lookupSetting("font_size")
+		for i, line_data in ipairs(self.data.lines) do
+			local line = self.lineholder:Add("SyperEditorLine")
+			line:SetData(line_data)
+			line:SetHeight(h)
+			line:Dock(TOP)
+			
+			self.lines[i] = line
+		end
+	else
+		self.data = Lexer.tokenize(self.lexer, self.content_lines, line_count, self.data, start_line)
+		local lines = self.data.lines
+		local h = Settings.lookupSetting("font_size")
+		for i = start_line, start_line + line_count - 1 do
+			local line = self.lines[i]
+			if not line then
+				line = self.lineholder:Add("SyperEditorLine")
+				line:SetHeight(h)
+				line:Dock(TOP)
+				
+				self.lines[i] = line
+			end
+			
+			line:SetData(lines[i])
+		end
 	end
 	
 	print("rebuild", SysTime() - t)
@@ -631,8 +650,10 @@ function Editor:MoveCaret(i, x, y)
 end
 
 function Editor:InsertStr(str)
+	local y = math.huge
 	local carets, history = table.Copy(self.carets), {}
 	for _, caret in ipairs(self.carets) do
+		y = math.min(y, caret.y)
 		history[#history + 1] = {Editor.RemoveStrAt, Editor.InsertStrAt, caret.x, caret.y, len(str), str}
 		self:InsertStrAt(caret.x, caret.y, str)
 	end
@@ -642,8 +663,7 @@ function Editor:InsertStr(str)
 		self.history[i] = nil
 	end
 	
-	-- currently just rebuild everything to test
-	self:Rebuild()
+	self:Rebuild(self:VisibleLineCount(), y)
 end
 
 function Editor:InsertStrAt(x, y, str)

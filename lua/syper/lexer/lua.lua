@@ -9,7 +9,7 @@ return {
 		
 		-- whitespace
 		{"(\n)", TOKEN.Whitespace},
-		{"(%s+)", TOKEN.Whitespace},
+		{"([^%S\n]+)", TOKEN.Whitespace},
 		
 		-- multiline comment
 		{"(%-%-%[(=*)%[)", TOKEN.Comment, "mcomment"},
@@ -69,13 +69,14 @@ return {
 		{"(\\%g)", TOKEN.String_Escape},
 		{"(<CAP>)", TOKEN.String, "main"},
 		{"(\\\n)", TOKEN.String_Escape},
-		{"(\n)", TOKEN.Error},
+		{"(\n)", TOKEN.Error, "main"},
 		{"([^<CAP>\\\n]+)", TOKEN.String},
+		{"(\\.?)", TOKEN.Error},
 	},
 	
 	func = {
 		{"(\n)", TOKEN.Whitespace},
-		{"(%s+)", TOKEN.Whitespace},
+		{"([^%S\n]+)", TOKEN.Whitespace},
 		{"([%a_]?[%w_]*)[%s\n]*[%.:%(]", TOKEN.Function, "func_punc"},
 		{"([^\n]+\n)", TOKEN.Error, "main"}
 		-- {"([%a_][%w_]*)%s*\n", TOKEN.Error, "main"}
@@ -83,14 +84,14 @@ return {
 	
 	func_punc = {
 		{"(\n)", TOKEN.Whitespace},
-		{"(%s+)", TOKEN.Whitespace},
+		{"([^%S\n]+)", TOKEN.Whitespace},
 		{"([%.:])", TOKEN.Punctuation, "func"},
 		{"(%()", TOKEN.Punctuation, "func_arg"},
 	},
 	
 	func_arg = {
 		{"(\n)", TOKEN.Whitespace},
-		{"(%s+)", TOKEN.Whitespace},
+		{"([^%S\n]+)", TOKEN.Whitespace},
 		{"([%a_][%w_]*)", TOKEN.Argument},
 		{"(%.%.%.)", TOKEN.Argument},
 		{"(%))", TOKEN.Punctuation, "main"},

@@ -1,6 +1,6 @@
 return [=[{
 	"font": "DejaVu Sans Mono",
-	"font_size": 13,
+	"font_size": 14,
 	"style": "monokai",
 	"tabsize": 4,
 	
