@@ -144,9 +144,10 @@ function Act.redo(self)
 end
 
 function Act.copy(self)
-	local str = {}
+	local str, empty = {}, true
 	local function add(s)
 		str[#str + 1] = s
+		empty = false
 	end
 	
 	for caret_id, caret in ipairs(self.carets) do
@@ -169,10 +170,20 @@ function Act.copy(self)
 			if sy ~= ey then
 				add(sub(self.content_lines[ey][1], 1, ex - 1))
 			end
+			
+			if caret_id ~= #self.carets then
+				add("\n")
+			end
 		end
-		
-		if caret_id ~= #self.carets then
-			add("\n")
+	end
+	
+	if empty then
+		for caret_id, caret in ipairs(self.carets) do
+			add(self.content_lines[caret.y][1])
+			
+			if caret_id ~= #self.carets then
+				add("\n")
+			end
 		end
 	end
 	
@@ -270,7 +281,44 @@ function Act.delete(self, typ, count_dir)
 	elseif typ == "char" then
 		self:RemoveStr(count_dir)
 	elseif typ == "word" then
-		
+		local lines = self.content_lines
+		for caret_id, caret in ipairs(self.carets) do
+			if count_dir > 0 then
+				local line = lines[caret.y][1]
+				local ll = lines[caret.y][2]
+				if caret.x >= ll then
+					if caret.y == #lines then goto SKIP end
+					
+					self:RemoveStrAt(caret.x, caret.y, 1, true)
+					
+					goto SKIP
+				end
+				
+				local e = select(2, string.find(sub(line, caret.x), "[^%w_]*[%w_]+"))
+				-- self:SetCaret(caret_id, e and (e + caret.x) or (ll + 1), nil)
+				self:RemoveStrAt(caret.x, caret.y, e or (ll + 1 - caret.x), true)
+			else
+				local line = lines[caret.y][1]
+				if caret.x == 1 then
+					if caret.y == 1 then goto SKIP end
+					
+					self:RemoveStrAt(caret.x, caret.y, -1, true)
+					
+					goto SKIP
+				end
+				
+				local s = string.find(sub(line, 1, caret.x - 1), "[%w_]*[^%w_]*$")
+				-- self:SetCaret(caret_id, s, nil)
+				self:RemoveStrAt(caret.x, caret.y, s - caret.x, true)
+			end
+			
+			::SKIP::
+			
+			self:PushHistoryBlock()
+			
+			-- currently just rebuild everything
+			self:Rebuild()
+		end
 	end
 	
 	self:ClearExcessCarets()
@@ -480,6 +528,7 @@ function Editor:Init()
 		end
 	end
 	
+	self:SetCursor("beam")
 	self:SetSyntax("lua")
 	self:Rebuild()
 	self:AddCaret(1, 1)
