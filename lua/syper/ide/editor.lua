@@ -23,7 +23,7 @@ hook.Add("SyperSettings", "syper_editor", settingsUpdate)
 ----------------------------------------
 
 local function getRenderString(str)
-	local tabsize = Settings.lookupSetting("tabsize")
+	local tabsize = Settings.lookupSetting("tab_size")
 	local ctrl = Settings.lookupSetting("show_controll_characters")
 	local s = ""
 	
@@ -36,7 +36,7 @@ local function getRenderString(str)
 end
 
 local function renderToRealPos(str, pos)
-	local tabsize = Settings.lookupSetting("tabsize")
+	local tabsize = Settings.lookupSetting("tab_size")
 	local l = 0
 	
 	for i = 1, len(str) do
@@ -48,7 +48,7 @@ local function renderToRealPos(str, pos)
 end
 
 local function realToRenderPos(str, pos)
-	local tabsize = Settings.lookupSetting("tabsize")
+	local tabsize = Settings.lookupSetting("tab_size")
 	local l = 0
 	
 	for i = 1, pos - 1 do
@@ -354,6 +354,11 @@ function Act.move(self, typ, count_dir, selc)
 			handleSelect(caret)
 			
 			self:MoveCaret(caret_id, nil, count_dir)
+		elseif typ == "page" then
+			handleSelect(caret)
+			
+			self:MoveCaret(caret_id, nil, count_dir * self:VisibleLineCount())
+			self:DoScroll(count_dir * self:VisibleLineCount() * Settings.settings.font_size)
 		elseif typ == "bol" then
 			handleSelect(caret)
 			
@@ -402,9 +407,78 @@ function Editor:Init()
 	self.textentry.OnTextChanged = function() self:OnTextChanged() end
 	self.textentry.OnLoseFocus = function() self:OnLoseFocus() end
 	
-	self.lineholder = self:Add("Panel")
-	self.lineholder:Dock(FILL)
+	self.scrolltarget = 0
+	self.scrollbar = self:Add("DVScrollBar")
+	self.scrollbar:Dock(RIGHT)
+	self.scrollbar:SetWidth(12)
+	self.scrollbar:SetHideButtons(true)
+	self.scrollbar.OnMouseWheeled = function(_, delta) self:OnMouseWheeled(delta) return true end
+	self.scrollbar.OnMousePressed = function()
+		local y = select(2, self.scrollbar:CursorPos())
+		self:DoScroll((y > self.scrollbar.btnGrip.y and 1 or -1) * self:VisibleLineCount() * Settings.settings.font_size)
+	end
+	self.scrollbar.Paint = function(_, w, h)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, Settings.settings.style_data.highlight)
+	end
+	self.scrollbar.btnGrip.Paint = function(_, w, h)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, Settings.settings.style_data.linenumber)
+	end
+	
+	self.lineholder_dock = self:Add("Panel")
+	self.lineholder_dock:Dock(FILL)
+	self.lineholder_dock:SetMouseInputEnabled(false)
+	
+	self.lineholder = self.lineholder_dock:Add("Panel")
 	self.lineholder:SetMouseInputEnabled(false)
+	self.lineholder.Paint = function(_, w, h)
+		local th = Settings.lookupSetting("font_size")
+		local lines = self.content_lines
+		for _, caret in ipairs(self.carets) do
+			if caret.select_x then
+				surface.SetDrawColor(Settings.settings.style_data.highlight)
+				
+				local sx, sy = caret.x, caret.y
+				local ex, ey = caret.select_x, caret.select_y
+				
+				if ey < sy or (ex < sx and sy == ey) then
+					local ex_, ey_ = ex, ey
+					ex, ey = sx, sy
+					sx, sy = ex_, ey_
+				end
+				
+				ex = ex - 1
+				
+				if sy == ey then
+					local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
+					local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx, ex)))
+					surface.DrawRect(self.gutter_size + offset, sy * th - th, tw, th)
+				else
+					local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
+					local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx)))
+					surface.DrawRect(self.gutter_size + offset, sy * th - th, tw, th)
+					
+					for y = sy + 1, ey - 1 do
+						local tw = surface.GetTextSize(getRenderString(lines[y][1]))
+						surface.DrawRect(self.gutter_size, y * th - th, tw, th)
+					end
+					
+					local tw = surface.GetTextSize(getRenderString(sub(lines[ey][1], 1, ex)))
+					surface.DrawRect(self.gutter_size, ey * th - th, tw, th)
+				end
+			end
+		end
+		
+		return true
+	end
+	self.lineholder.PaintOver = function(_, w, h)
+		surface.SetDrawColor(255, 255, 255, 255)
+		
+		local th = Settings.lookupSetting("font_size")
+		local lines = self.content_lines
+		for caret_id, caret in ipairs(self.carets) do
+			surface.DrawRect(self.gutter_size + caret.visual_x, caret.y * th - th, 2, th)
+		end
+	end
 	
 	self:SetSyntax("lua")
 	self:Rebuild()
@@ -414,43 +488,6 @@ end
 function Editor:Paint(w, h)
 	surface.SetDrawColor(Settings.settings.style_data.background)
 	surface.DrawRect(0, 0, w, h)
-	
-	local th = Settings.lookupSetting("font_size")
-	local lines = self.content_lines
-	for _, caret in ipairs(self.carets) do
-		if caret.select_x then
-			surface.SetDrawColor(Settings.settings.style_data.highlight)
-			
-			local sx, sy = caret.x, caret.y
-			local ex, ey = caret.select_x, caret.select_y
-			
-			if ey < sy or (ex < sx and sy == ey) then
-				local ex_, ey_ = ex, ey
-				ex, ey = sx, sy
-				sx, sy = ex_, ey_
-			end
-			
-			ex = ex - 1
-			
-			if sy == ey then
-				local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
-				local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx, ex)))
-				surface.DrawRect(self.gutter_size + offset, sy * th - th, tw, th)
-			else
-				local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
-				local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx)))
-				surface.DrawRect(self.gutter_size + offset, sy * th - th, tw, th)
-				
-				for y = sy + 1, ey - 1 do
-					local tw = surface.GetTextSize(getRenderString(lines[y][1]))
-					surface.DrawRect(self.gutter_size, y * th - th, tw, th)
-				end
-				
-				local tw = surface.GetTextSize(getRenderString(sub(lines[ey][1], 1, ex)))
-				surface.DrawRect(self.gutter_size, ey * th - th, tw, th)
-			end
-		end
-	end
 	
 	return true
 end
@@ -462,8 +499,8 @@ function Editor:PaintOver(w, h)
 	local th = Settings.lookupSetting("font_size")
 	local lines = self.content_lines
 	for caret_id, caret in ipairs(self.carets) do
-		surface.SetDrawColor(255, 255, 255, 255)
-		surface.DrawRect(self.gutter_size + caret.visual_x, caret.y * th - th, 2, th)
+		-- surface.SetDrawColor(255, 255, 255, 255)
+		-- surface.DrawRect(self.gutter_size + caret.visual_x, caret.y * th - th, 2, th)
 		
 		surface.SetTextPos(self.gutter_size, h - th * caret_id)
 		surface.DrawText(string.format("%s,%s | %s,%s", caret.x, caret.y, caret.select_x, caret.select_y))
@@ -500,6 +537,26 @@ function Editor:OnMousePressed(key)
 	if key == MOUSE_LEFT then
 		self:RequestFocus()
 	end
+	
+	local bind = Settings.lookupBind(
+		input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL),
+		input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT),
+		input.IsKeyDown(KEY_LALT) or input.IsKeyDown(KEY_RALT),
+		key
+	)
+	
+	if bind then
+		local act = self.Act[bind.act]
+		
+		-- Gotta check since there are binds that are handled by different things such as changing active tab
+		if act then
+			act(self, unpack(bind.args or {}))
+		end
+	end
+end
+
+function Editor:OnMouseWheeled(delta)
+	self:DoScroll(-delta * Settings.settings.font_size * Settings.settings.scroll_multiplier)
 end
 
 function Editor:OnTextChanged()
@@ -539,8 +596,36 @@ function Editor:OnGetFocus()
 	self:RequestFocus()
 end
 
+function Editor:PerformLayout()
+	self.lineholder:SetSize(select(2, self.lineholder_dock:GetSize()), 99999)
+	self:UpdateScrollbar()
+end
+
+function Editor:UpdateScrollbar()
+	local s = select(2, self.lineholder_dock:GetSize())
+	self.scrollbar:SetUp(s, s + Settings.lookupSetting("font_size") * (#self.content_lines - 1) + 1)
+end
+
+function Editor:DoScroll(delta)
+	local speed = Settings.settings.scroll_speed
+	self.scrolltarget = math.Clamp(self.scrolltarget + delta, 0, self.scrollbar.CanvasSize)
+	if speed == 0 then
+		self.scrollbar:SetScroll(self.scrolltarget)
+	else
+		self.scrollbar:AnimateTo(self.scrolltarget, 0.1 / speed, 0, -1)
+	end
+end
+
+function Editor:OnVScroll(scroll)
+	if self.scrollbar.Dragging then
+		self.scrolltarget = -scroll
+	end
+	
+	self.lineholder:SetPos(0, scroll)
+end
+
 function Editor:VisibleLineCount()
-	return math.ceil(select(2, self:GetSize()) / Settings.lookupSetting("font_size"))
+	return math.ceil(select(2, self.lineholder_dock:GetSize()) / Settings.lookupSetting("font_size"))
 end
 
 function Editor:PushHistoryBlock()
@@ -623,6 +708,8 @@ function Editor:Rebuild(line_count, start_line)
 		end
 	end
 	
+	self:UpdateScrollbar()
+	
 	print("rebuild", SysTime() - t)
 end
 
@@ -704,10 +791,14 @@ function Editor:MoveCaret(i, x, y)
 				if caret.y < #lines then
 					caret.x = renderToRealPos(lines[caret.y + 1][1], realToRenderPos(lines[caret.y][1], caret.x))
 					caret.y = caret.y + 1
+					
+					if caret.y == #lines then break end
 				end
 			elseif caret.y > 1 then
 				caret.x = renderToRealPos(lines[caret.y - 1][1], realToRenderPos(lines[caret.y][1], caret.x))
 				caret.y = caret.y - 1
+				
+				if caret.y == 1 then break end
 			end
 		end
 	end

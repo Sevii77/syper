@@ -36,6 +36,11 @@ return [=[{
 	"ctrl+shift+up": {"act": "move", "args": ["line", -1, true]},
 	"ctrl+shift+down": {"act": "move", "args": ["line", 1, true]},
 	
+	"pageup": {"act": "move", "args": ["page", -1]},
+	"pagedown": {"act": "move", "args": ["page", 1]},
+	"shift+pageup": {"act": "move", "args": ["page", -1, true]},
+	"shift+pagedown": {"act": "move", "args": ["page", 1, true]},
+	
 	"home": {"act": "move", "args": ["bol"]},
 	"end": {"act": "move", "args": ["eol"]},
 	"shift+home": {"act": "move", "args": ["bol", false, true]},

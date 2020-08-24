@@ -3,8 +3,8 @@ local TOKEN = Syper.TOKEN
 return {
 	background =            {r = 39,  g = 40,  b = 34,  a = 255},
 	highlight =             {r = 73,  g = 72,  b = 62,  a = 255},
-	linenumber_background = {r = 12,  g = 13,  b = 11,  a = 255},
-	linenumber =            {r = 248, g = 248, b = 242, a = 255},
+	linenumber_background = {r = 36,  g = 36,  b = 31,  a = 255},
+	linenumber =            {r = 146, g = 144, b = 140, a = 255},
 	
 	[TOKEN.Identifier]       = {f = {r = 248, g = 248, b = 242, a = 255}},
 	[TOKEN.Other]            = {f = {r = 248, g = 248, b = 242, a = 255}},
