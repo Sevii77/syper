@@ -1,4 +1,5 @@
 local Lexer = Syper.Lexer
+local Mode = Syper.Mode
 local Settings = Syper.Settings
 local TOKEN = Syper.TOKEN
 
@@ -207,6 +208,22 @@ function Act.pasteindent(self)
 	-- TODO
 end
 
+function Act.newline(self)
+	for caret_id, caret in ipairs(self.carets) do
+		if Settings.settings.indent_auto then
+			local e = select(2, string.find(self.content_lines[caret.y][1], "^\t*"))
+			self:InsertStrAt(caret.x, caret.y, "\n" .. string.rep("\t", e), true)
+		else
+			self:InsertStrAt(caret.x, caret.y, "\n", true)
+		end
+	end
+	
+	self:PushHistoryBlock()
+	
+	-- currently just rebuild everything
+	self:Rebuild()
+end
+
 function Act.indent(self)
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_y and caret.select_y ~= caret.y then
@@ -227,7 +244,7 @@ function Act.indent(self)
 	self:Rebuild()
 end
 
-function Act.unindent(self)
+function Act.outdent(self)
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_y and caret.select_y ~= caret.y then
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
@@ -450,7 +467,7 @@ function Editor:Init()
 	self.textentry = self:Add("TextEntry")
 	self.textentry:SetSize(0, 0)
 	self.textentry:SetAllowNonAsciiCharacters(true)
-	self.textentry:SetMultiline(true)
+	-- self.textentry:SetMultiline(true)
 	self.textentry.OnKeyCodeTyped = function(_, key) self:OnKeyCodeTyped(key) end
 	self.textentry.OnTextChanged = function() self:OnTextChanged() end
 	self.textentry.OnLoseFocus = function() self:OnLoseFocus() end
@@ -574,9 +591,9 @@ function Editor:OnKeyCodeTyped(key)
 		-- Gotta check since there are binds that are handled by different things such as changing active tab
 		if act then
 			act(self, unpack(bind.args or {}))
+			
+			return true
 		end
-		
-		return true
 	end
 	
 	return false
@@ -764,6 +781,7 @@ end
 
 function Editor:SetSyntax(syntax)
 	self.lexer = Lexer.lexers[syntax]
+	self.mode = Mode.modes[syntax]
 end
 
 function Editor:ClearCarets()

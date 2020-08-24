@@ -1,0 +1,5 @@
+return {
+	indent = {},
+	outdent = {},
+	open = {},
+}

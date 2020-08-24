@@ -11,6 +11,7 @@ do
 	
 	add("./token.lua")
 	add("./lexer.lua")
+	add("./mode.lua")
 	add("./settings.lua")
 	add("./ide/ide.lua", true)
 end
