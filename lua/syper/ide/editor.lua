@@ -200,13 +200,13 @@ function Act.indent(self)
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_y and caret.select_y ~= caret.y then
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
-				self:InsertStrAt(1, y, "\t")
+				self:InsertStrAt(1, y, "\t", true)
 				if y == caret.select_y then
 					caret.select_x = caret.select_x + 1
 				end
 			end
 		else
-			self:InsertStrAt(caret.x, caret.y, "\t")
+			self:InsertStrAt(caret.x, caret.y, "\t", true)
 		end
 	end
 	
@@ -221,14 +221,14 @@ function Act.unindent(self)
 		if caret.select_y and caret.select_y ~= caret.y then
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
 				if string.sub(self.content_lines[y][1], 1, 1) == "\t" then
-					self:RemoveStrAt(1, y, 1)
+					self:RemoveStrAt(1, y, 1, true)
 					if y == caret.select_y then
 						caret.select_x = caret.select_x - 1
 					end
 				end
 			end
 		else
-			self:InsertStrAt(caret.x, caret.y, "\t")
+			self:InsertStrAt(caret.x, caret.y, "\t", true)
 		end
 	end
 	
@@ -461,11 +461,11 @@ function Editor:PaintOver(w, h)
 	
 	local th = Settings.lookupSetting("font_size")
 	local lines = self.content_lines
-	for _, caret in ipairs(self.carets) do
+	for caret_id, caret in ipairs(self.carets) do
 		surface.SetDrawColor(255, 255, 255, 255)
 		surface.DrawRect(self.gutter_size + caret.visual_x, caret.y * th - th, 2, th)
 		
-		surface.SetTextPos(0, h - th)
+		surface.SetTextPos(self.gutter_size, h - th * caret_id)
 		surface.DrawText(string.format("%s,%s | %s,%s", caret.x, caret.y, caret.select_x, caret.select_y))
 	end
 end
