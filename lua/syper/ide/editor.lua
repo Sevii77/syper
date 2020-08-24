@@ -136,35 +136,11 @@ vgui.Register("SyperEditorLine", Line, "Panel")
 local Act = {}
 
 function Act.undo(self)
-	if self.history_pointer == 0 then return end
-	
-	local his = self.history[self.history_pointer]
-	self.carets = his[1]
-	for caret_id, caret in ipairs(self.carets) do
-		self:SetCaret(caret_id, caret.x, caret.y)
-	end
-	for _, v in ipairs(his[2]) do
-		v[1](self, v[3], v[4], v[5])
-	end
-	
-	self.history_pointer = self.history_pointer - 1
-	self:Rebuild()
+	self:Undo()
 end
 
 function Act.redo(self)
-	if self.history_pointer == #self.history then return end
-	
-	self.history_pointer = self.history_pointer + 1
-	local his = self.history[self.history_pointer]
-	self.carets = his[1]
-	for caret_id, caret in ipairs(self.carets) do
-		self:SetCaret(caret_id, caret.x, caret.y)
-	end
-	for _, v in ipairs(his[2]) do
-		v[2](self, v[3], v[4], v[6])
-	end
-	
-	self:Rebuild()
+	self:Redo()
 end
 
 function Act.copy(self)
@@ -234,6 +210,8 @@ function Act.indent(self)
 		end
 	end
 	
+	self:PushHistoryBlock()
+	
 	-- currently just rebuild everything
 	self:Rebuild()
 end
@@ -253,6 +231,8 @@ function Act.unindent(self)
 			self:InsertStrAt(caret.x, caret.y, "\t")
 		end
 	end
+	
+	self:PushHistoryBlock()
 	
 	-- currently just rebuild everything
 	self:Rebuild()
@@ -407,6 +387,7 @@ function Editor:Init()
 	self.content_lines = {{"\3", 0}}
 	self.history = {}
 	self.history_pointer = 0
+	self.history_block = {}
 	self.data = {}
 	self.lines = {}
 	self.carets = {}
@@ -562,6 +543,51 @@ function Editor:VisibleLineCount()
 	return math.ceil(select(2, self:GetSize()) / Settings.lookupSetting("font_size"))
 end
 
+function Editor:PushHistoryBlock()
+	self.history_pointer = self.history_pointer + 1
+	self.history[self.history_pointer] = {table.Copy(self.carets), self.history_block}
+	for i = self.history_pointer + 1, #self.history do
+		self.history[i] = nil
+	end
+	self.history_block = {}
+end
+
+function Editor:AddHistory(tbl)
+	self.history_block[#self.history_block + 1] = tbl
+end
+
+function Editor:Undo()
+	if self.history_pointer == 0 then return end
+	
+	local his = self.history[self.history_pointer]
+	self.carets = his[1]
+	for caret_id, caret in ipairs(self.carets) do
+		self:SetCaret(caret_id, caret.x, caret.y)
+	end
+	for _, v in ipairs(his[2]) do
+		v[1](self, v[3], v[4], v[5])
+	end
+	self.history_pointer = self.history_pointer - 1
+	
+	self:Rebuild()
+end
+
+function Editor:Redo()
+	if self.history_pointer == #self.history then return end
+	
+	self.history_pointer = self.history_pointer + 1
+	local his = self.history[self.history_pointer]
+	self.carets = his[1]
+	for caret_id, caret in ipairs(self.carets) do
+		self:SetCaret(caret_id, caret.x, caret.y)
+	end
+	for _, v in ipairs(his[2]) do
+		v[2](self, v[3], v[4], v[6])
+	end
+	
+	self:Rebuild()
+end
+
 function Editor:Rebuild(line_count, start_line)
 	local t = SysTime()
 	
@@ -691,22 +717,21 @@ end
 
 function Editor:InsertStr(str)
 	local y = math.huge
-	local carets, history = table.Copy(self.carets), {}
 	for _, caret in ipairs(self.carets) do
 		y = math.min(y, caret.y)
-		history[#history + 1] = {Editor.RemoveStrAt, Editor.InsertStrAt, caret.x, caret.y, len(str), str}
-		self:InsertStrAt(caret.x, caret.y, str)
+		self:InsertStrAt(caret.x, caret.y, str, true)
 	end
-	self.history_pointer = self.history_pointer + 1
-	self.history[self.history_pointer] = {carets, history}
-	for i = self.history_pointer + 1, #self.history do
-		self.history[i] = nil
-	end
+	
+	self:PushHistoryBlock()
 	
 	self:Rebuild(self:VisibleLineCount(), y)
 end
 
-function Editor:InsertStrAt(x, y, str)
+function Editor:InsertStrAt(x, y, str, do_history)
+	if do_history then
+		self:AddHistory({Editor.RemoveStrAt, Editor.InsertStrAt, x, y, len(str), str})
+	end
+	
 	local lines, line_count, p = {}, 0, 1
 	while true do
 		local s = string.find(str, "\n", p)
@@ -739,17 +764,10 @@ end
 function Editor:RemoveStr(length)
 	local history = {}
 	for caret_id, caret in ipairs(self.carets) do
-		local rem, x, y, rem_str = self:RemoveStrAt(caret.x, caret.y, length)
-		history[#history + 1] = {Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem_str, rem}
-		-- if length < 0 then
-		-- 	self:MoveCaret(caret_id, -rem, nil)
-		-- end
+		self:RemoveStrAt(caret.x, caret.y, length, true)
 	end
-	self.history_pointer = self.history_pointer + 1
-	self.history[self.history_pointer] = {table.Copy(self.carets), history}
-	for i = self.history_pointer + 1, #self.history do
-		self.history[i] = nil
-	end
+	
+	self:PushHistoryBlock()
 	
 	-- currently just rebuild everything to test
 	self:Rebuild()
@@ -777,7 +795,7 @@ function Editor:RemoveSelection()
 				length = length + ex - 1
 			end
 			
-			local rem, x, y, rem_str = self:RemoveStrAt(sx, sy, length)
+			local rem, x, y, rem_str = self:RemoveStrAt(sx, sy, length, true)
 			history[#history + 1] = {Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem_str, rem}
 			-- self:SetCaret(caret_id, sx, sy)
 			
@@ -785,17 +803,14 @@ function Editor:RemoveSelection()
 			caret.select_y = nil
 		end
 	end
-	self.history_pointer = self.history_pointer + 1
-	self.history[self.history_pointer] = {table.Copy(self.carets), history}
-	for i = self.history_pointer + 1, #self.history do
-		self.history[i] = nil
-	end
+	
+	self:PushHistoryBlock()
 	
 	-- currently just rebuild everything to test
 	self:Rebuild()
 end
 
-function Editor:RemoveStrAt(x, y, length)
+function Editor:RemoveStrAt(x, y, length, do_history)
 	local cs = self.content_lines
 	local rem = {}
 	local length_org = length
@@ -841,6 +856,10 @@ function Editor:RemoveStrAt(x, y, length)
 		if caret.y > y or (caret.y == y and caret.x > x) then
 			self:MoveCaret(caret_id, -len, nil)
 		end
+	end
+	
+	if do_history then
+		self:AddHistory({Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem, len})
 	end
 	
 	return len, x, y, rem
