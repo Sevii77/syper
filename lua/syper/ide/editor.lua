@@ -220,6 +220,44 @@ function Act.pasteindent(self)
 	-- TODO
 end
 
+function Act.indent(self)
+	for caret_id, caret in ipairs(self.carets) do
+		if caret.select_y and caret.select_y ~= caret.y then
+			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
+				self:InsertStrAt(1, y, "\t")
+				if y == caret.select_y then
+					caret.select_x = caret.select_x + 1
+				end
+			end
+		else
+			self:InsertStrAt(caret.x, caret.y, "\t")
+		end
+	end
+	
+	-- currently just rebuild everything
+	self:Rebuild()
+end
+
+function Act.unindent(self)
+	for caret_id, caret in ipairs(self.carets) do
+		if caret.select_y and caret.select_y ~= caret.y then
+			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
+				if string.sub(self.content_lines[y][1], 1, 1) == "\t" then
+					self:RemoveStrAt(1, y, 1)
+					if y == caret.select_y then
+						caret.select_x = caret.select_x - 1
+					end
+				end
+			end
+		else
+			self:InsertStrAt(caret.x, caret.y, "\t")
+		end
+	end
+	
+	-- currently just rebuild everything
+	self:Rebuild()
+end
+
 function Act.selectall(self)
 	local lines = self.content_lines
 	
@@ -396,19 +434,11 @@ function Editor:Paint(w, h)
 	surface.SetDrawColor(Settings.settings.style_data.background)
 	surface.DrawRect(0, 0, w, h)
 	
-	return true
-end
-
-function Editor:PaintOver(w, h)
-	surface.SetTextColor(255, 255, 255, 255)
-	surface.SetFont("syper_syntax_1")
-	-- local cw, ch = surface.GetTextSize(" ")
 	local th = Settings.lookupSetting("font_size")
-	
 	local lines = self.content_lines
 	for _, caret in ipairs(self.carets) do
 		if caret.select_x then
-			surface.SetDrawColor(255, 255, 255, 100)
+			surface.SetDrawColor(Settings.settings.style_data.highlight)
 			
 			local sx, sy = caret.x, caret.y
 			local ex, ey = caret.select_x, caret.select_y
@@ -425,7 +455,6 @@ function Editor:PaintOver(w, h)
 				local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
 				local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx, ex)))
 				surface.DrawRect(self.gutter_size + offset, sy * th - th, tw, th)
-				-- surface.DrawRect(self.gutter_size + cx * cw, cy * ch, (sx - cx) * cw, ch)
 			else
 				local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
 				local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx)))
@@ -440,8 +469,18 @@ function Editor:PaintOver(w, h)
 				surface.DrawRect(self.gutter_size, ey * th - th, tw, th)
 			end
 		end
-		
-		-- local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, 1, caret.x - 1)))
+	end
+	
+	return true
+end
+
+function Editor:PaintOver(w, h)
+	surface.SetTextColor(255, 255, 255, 255)
+	surface.SetFont("syper_syntax_1")
+	
+	local th = Settings.lookupSetting("font_size")
+	local lines = self.content_lines
+	for _, caret in ipairs(self.carets) do
 		surface.SetDrawColor(255, 255, 255, 255)
 		surface.DrawRect(self.gutter_size + caret.visual_x, caret.y * th - th, 2, th)
 		
@@ -458,6 +497,10 @@ function Editor:OnKeyCodeTyped(key)
 		key
 	)
 	
+	if key == KEY_TAB then
+		self.refocus = true
+	end
+	
 	if bind then
 		local act = self.Act[bind.act]
 		
@@ -465,11 +508,6 @@ function Editor:OnKeyCodeTyped(key)
 		if act then
 			act(self, unpack(bind.args or {}))
 		end
-		
-		return true
-	elseif key == KEY_TAB then
-		self:InsertStr("\t")
-		self.refocus = true
 		
 		return true
 	end
@@ -607,7 +645,7 @@ function Editor:MoveCaret(i, x, y)
 	local lines = self.content_lines
 	local caret = self.carets[i]
 	
-	if x then
+	if x and x ~= 0 then
 		local xn = x / math.abs(x)
 		for _ = xn, x, xn do
 			if x > 0 then
@@ -633,7 +671,7 @@ function Editor:MoveCaret(i, x, y)
 		end
 	end
 	
-	if y then
+	if y and y ~= 0 then
 		local yn = y / math.abs(y)
 		for _ = yn, y, yn do
 			if y > 0 then
@@ -703,9 +741,9 @@ function Editor:RemoveStr(length)
 	for caret_id, caret in ipairs(self.carets) do
 		local rem, x, y, rem_str = self:RemoveStrAt(caret.x, caret.y, length)
 		history[#history + 1] = {Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem_str, rem}
-		if length < 0 then
-			self:MoveCaret(caret_id, -rem, nil)
-		end
+		-- if length < 0 then
+		-- 	self:MoveCaret(caret_id, -rem, nil)
+		-- end
 	end
 	self.history_pointer = self.history_pointer + 1
 	self.history[self.history_pointer] = {table.Copy(self.carets), history}
@@ -741,7 +779,7 @@ function Editor:RemoveSelection()
 			
 			local rem, x, y, rem_str = self:RemoveStrAt(sx, sy, length)
 			history[#history + 1] = {Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem_str, rem}
-			self:SetCaret(caret_id, sx, sy)
+			-- self:SetCaret(caret_id, sx, sy)
 			
 			caret.select_x = nil
 			caret.select_y = nil
@@ -797,7 +835,15 @@ function Editor:RemoveStrAt(x, y, length)
 		if i == 4096 then print("!!! Syper: Editor:RemoveStrAt") break end
 	end
 	
-	return math.abs(length_org) - length, x, y, table.concat(rem, "")
+	rem = table.concat(rem, "")
+	local len = math.abs(length_org) - length
+	for caret_id, caret in ipairs(self.carets) do
+		if caret.y > y or (caret.y == y and caret.x > x) then
+			self:MoveCaret(caret_id, -len, nil)
+		end
+	end
+	
+	return len, x, y, rem
 end
 
 vgui.Register("SyperEditor", Editor, "Panel")

@@ -8,6 +8,9 @@ return [=[{
 	"ctrl+v": {"act": "paste", "_COMMENT_": "this is just a dummy, cant be changed"},
 	"ctrl+shift+v": {"act": "pasteindent", "_COMMENT_": "partly a dummy, only does the indenting"},
 	
+	"tab": {"act": "indent"},
+	"shift+tab": {"act": "unindent"},
+	
 	"ctrl+a": {"act": "selectall"},
 	
 	"backspace": {"act": "delete", "args": ["char", -1]},
