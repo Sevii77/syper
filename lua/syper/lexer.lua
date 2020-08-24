@@ -106,7 +106,6 @@ function Lexer.tokenize(lexer, content_lines, max_lines, data_override, start_li
 			
 			if fdata.pattern[3] then
 				mode = fdata.pattern[3]
-				line.mode = mode
 				mode_repl = fdata.cap
 			end
 			

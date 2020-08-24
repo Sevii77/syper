@@ -389,7 +389,7 @@ end
 local Editor = {Act = Act}
 
 function Editor:Init()
-	self.content_lines = {{"\3", 0}}
+	self.content_lines = {{"\0", 0}}
 	self.history = {}
 	self.history_pointer = 0
 	self.history_block = {}
@@ -921,6 +921,12 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 		end
 	end
 	
+	for caret_id, caret in ipairs(self.carets) do
+		if caret.y > y or (caret.y == y and caret.x > x) then
+			self:MoveCaret(caret_id, -length, nil)
+		end
+	end
+	
 	local i = 0
 	while length > 0 do
 		if not cs[y] then break end
@@ -932,6 +938,14 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 		cs[y][2] = len(str)
 		length = length - (org - cs[y][2])
 		if cs[y][2] == x - 1 then
+			if #cs == 1 then
+				if cs[1][2] == 0 then
+					cs[1] = {"\0", 1}
+				end
+				
+				break
+			end
+			
 			cs[y][1] = cs[y][1] .. (cs[y + 1] and cs[y + 1][1] or "")
 			cs[y][2] = len(cs[y][1])
 			table.remove(cs, y + 1)
@@ -942,18 +956,13 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 	end
 	
 	rem = table.concat(rem, "")
-	local len = math.abs(length_org) - length
-	for caret_id, caret in ipairs(self.carets) do
-		if caret.y > y or (caret.y == y and caret.x > x) then
-			self:MoveCaret(caret_id, -len, nil)
-		end
-	end
+	length = math.abs(length_org) - length
 	
 	if do_history then
-		self:AddHistory({Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem, len})
+		self:AddHistory({Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem, length})
 	end
 	
-	return len, x, y, rem
+	return length, x, y, rem
 end
 
 vgui.Register("SyperEditor", Editor, "Panel")
