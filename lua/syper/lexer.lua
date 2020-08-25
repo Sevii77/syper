@@ -99,7 +99,7 @@ function Lexer.tokenize(lexer, content_lines, max_lines, data_override, start_li
 		while true do
 			local fdata = find(code, curbyte_line, lexer[mode], mode_repl)
 			if not fdata then break end
-			line.tokens[#line.tokens + 1] = {token = fdata.pattern[2], text = fdata.str, mode = mode}
+			line.tokens[#line.tokens + 1] = {token = fdata.pattern[2], text = fdata.str, mode = mode, s = fdata.s, e = fdata.e}
 			line.str = line.str .. fdata.str
 			curbyte = fdata.e + 1
 			curbyte_line = fdata.e + 1

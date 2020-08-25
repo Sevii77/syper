@@ -202,6 +202,7 @@ end
 
 function Act.paste(self)
 	-- This will never be used
+	self.is_pasted = true
 end
 
 function Act.pasteindent(self)
@@ -219,8 +220,6 @@ function Act.newline(self)
 	end
 	
 	self:PushHistoryBlock()
-	
-	-- currently just rebuild everything
 	self:Rebuild()
 end
 
@@ -239,8 +238,6 @@ function Act.indent(self)
 	end
 	
 	self:PushHistoryBlock()
-	
-	-- currently just rebuild everything
 	self:Rebuild()
 end
 
@@ -261,8 +258,6 @@ function Act.outdent(self)
 	end
 	
 	self:PushHistoryBlock()
-	
-	-- currently just rebuild everything
 	self:Rebuild()
 end
 
@@ -296,7 +291,26 @@ function Act.delete(self, typ, count_dir)
 	if has_selection then
 		self:RemoveSelection()
 	elseif typ == "char" then
-		self:RemoveStr(count_dir)
+		if count_dir == -1 and Settings.settings.auto_closing_bracket then
+			local lines = self.content_lines
+			for caret_id, caret in ipairs(self.carets) do
+				if caret.x > 1 and caret.x <= lines[caret.y][2] then
+					local bracket = self.mode.bracket[sub(lines[caret.y][1], caret.x - 1, caret.x - 1)]
+					if bracket and sub(lines[caret.y][1], caret.x, caret.x) == bracket.close then
+						self:RemoveStrAt(caret.x + 1, caret.y, -2, true)
+					else
+						self:RemoveStrAt(caret.x, caret.y, -1, true)
+					end
+				else
+					self:RemoveStrAt(caret.x, caret.y, -1, true)
+				end
+			end
+			
+			self:PushHistoryBlock()
+			self:Rebuild()
+		else
+			self:RemoveStr(count_dir)
+		end
 	elseif typ == "word" then
 		local lines = self.content_lines
 		for caret_id, caret in ipairs(self.carets) do
@@ -312,7 +326,6 @@ function Act.delete(self, typ, count_dir)
 				end
 				
 				local e = select(2, string.find(sub(line, caret.x), "[^%w_]*[%w_]+"))
-				-- self:SetCaret(caret_id, e and (e + caret.x) or (ll + 1), nil)
 				self:RemoveStrAt(caret.x, caret.y, e or (ll + 1 - caret.x), true)
 			else
 				local line = lines[caret.y][1]
@@ -325,17 +338,14 @@ function Act.delete(self, typ, count_dir)
 				end
 				
 				local s = string.find(sub(line, 1, caret.x - 1), "[%w_]*[^%w_]*$")
-				-- self:SetCaret(caret_id, s, nil)
 				self:RemoveStrAt(caret.x, caret.y, s - caret.x, true)
 			end
 			
 			::SKIP::
-			
-			self:PushHistoryBlock()
-			
-			-- currently just rebuild everything
-			self:Rebuild()
 		end
+		
+		self:PushHistoryBlock()
+		self:Rebuild()
 	end
 	
 	self:ClearExcessCarets()
@@ -467,7 +477,7 @@ function Editor:Init()
 	self.textentry = self:Add("TextEntry")
 	self.textentry:SetSize(0, 0)
 	self.textentry:SetAllowNonAsciiCharacters(true)
-	-- self.textentry:SetMultiline(true)
+	self.textentry:SetMultiline(true)
 	self.textentry.OnKeyCodeTyped = function(_, key) self:OnKeyCodeTyped(key) end
 	self.textentry.OnTextChanged = function() self:OnTextChanged() end
 	self.textentry.OnLoseFocus = function() self:OnLoseFocus() end
@@ -565,9 +575,6 @@ function Editor:PaintOver(w, h)
 	local th = Settings.lookupSetting("font_size")
 	local lines = self.content_lines
 	for caret_id, caret in ipairs(self.carets) do
-		-- surface.SetDrawColor(255, 255, 255, 255)
-		-- surface.DrawRect(self.gutter_size + caret.visual_x, caret.y * th - th, 2, th)
-		
 		surface.SetTextPos(self.gutter_size, h - th * caret_id)
 		surface.DrawText(string.format("%s,%s | %s,%s", caret.x, caret.y, caret.select_x, caret.select_y))
 	end
@@ -630,6 +637,16 @@ function Editor:OnTextChanged()
 	local str = self.textentry:GetText()
 	self.textentry:SetText("")
 	
+	local bracket = nil
+	if not self.is_pasted then
+		if str == "\n" then return end
+		if Settings.settings.auto_closing_bracket then
+			bracket = self.mode.bracket[str]
+		end
+	elseif self.is_pasted then
+		self.is_pasted = false
+	end
+	
 	if ignore_chars[str] then return end
 	if #str == 0 then return end
 	
@@ -644,7 +661,18 @@ function Editor:OnTextChanged()
 		self:RemoveSelection()
 	end
 	
-	self:InsertStr(str)
+	-- self:InsertStr(str)
+	for caret_id, caret in ipairs(self.carets) do
+		if bracket and not bracket.ignore_mode[self:GetToken(caret.x, caret.y).mode] then
+			self:InsertStrAt(caret.x, caret.y, str .. bracket.close, true)
+			self:MoveCaret(caret_id, -1, nil)
+		else
+			self:InsertStrAt(caret.x, caret.y, str, true)
+		end
+	end
+	
+	self:PushHistoryBlock()
+	self:Rebuild()
 end
 
 function Editor:OnLoseFocus()
@@ -779,6 +807,17 @@ function Editor:Rebuild(line_count, start_line)
 	print("rebuild", SysTime() - t)
 end
 
+function Editor:GetToken(x, y)
+	local tokens = self.data.lines[y].tokens
+	for i = #tokens, 1, -1 do
+		local token = tokens[i]
+		print(x, token.s)
+		if x >= token.s then
+			return token
+		end
+	end
+end
+
 function Editor:SetSyntax(syntax)
 	self.lexer = Lexer.lexers[syntax]
 	self.mode = Mode.modes[syntax]
@@ -910,11 +949,10 @@ function Editor:InsertStrAt(x, y, str, do_history)
 	cs[e][1] = cs[e][1] .. sub(eo, x)
 	cs[e][2] = len(cs[e][1])
 	
+	local length = len(str)
 	for caret_id, caret in ipairs(self.carets) do
-		if caret.y > y then
-			self:MoveCaret(caret_id, nil, line_count)
-		elseif caret.y == y then
-			self:SetCaret(caret_id, (line_count == 0 and caret.x or 1) + len(string.match(str, "[^\n]*$")), y + line_count)
+		if caret.y > y or (caret.y == y and caret.x >= x) then
+			self:MoveCaret(caret_id, length, nil)
 		end
 	end
 end
@@ -926,8 +964,6 @@ function Editor:RemoveStr(length)
 	end
 	
 	self:PushHistoryBlock()
-	
-	-- currently just rebuild everything to test
 	self:Rebuild()
 end
 
@@ -963,8 +999,6 @@ function Editor:RemoveSelection()
 	end
 	
 	self:PushHistoryBlock()
-	
-	-- currently just rebuild everything to test
 	self:Rebuild()
 end
 
@@ -989,8 +1023,9 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 	end
 	
 	for caret_id, caret in ipairs(self.carets) do
-		if caret.y > y or (caret.y == y and caret.x > x) then
-			self:MoveCaret(caret_id, -length, nil)
+		local b = (caret.y == y and caret.x > x)
+		if caret.y > y or b then
+			self:MoveCaret(caret_id, b and -math.min(caret.x - x) or -length, nil)
 		end
 	end
 	
