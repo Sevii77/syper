@@ -795,7 +795,8 @@ function Editor:Undo()
 	for caret_id, caret in ipairs(self.carets) do
 		self:SetCaret(caret_id, caret.x, caret.y)
 	end
-	for _, v in ipairs(his[2]) do
+	for i = #his[2], 1, -1 do
+		local v = his[2][i]
 		v[1](self, v[3], v[4], v[5])
 	end
 	self.history_pointer = self.history_pointer - 1
