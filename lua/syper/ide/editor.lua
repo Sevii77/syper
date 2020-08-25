@@ -699,7 +699,6 @@ function Editor:OnTextChanged()
 	
 	-- self:InsertStr(str)
 	for caret_id, caret in ipairs(self.carets) do
-		print(sub(self.content_lines[caret.y][1], caret.x, caret.x), str)
 		if bracket2 and sub(self.content_lines[caret.y][1], caret.x, caret.x) == str then
 			if not bracket2.ignore_char[sub(self.content_lines[caret.y][1], caret.x - 1, caret.x - 1)] then
 				self:MoveCaret(caret_id, 1, nil)

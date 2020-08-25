@@ -31,11 +31,11 @@ return {
 		-- operator
 		{"([%+%-%*/%%^#=~<>])", TOKEN.Operator},
 		{"(%.%.)", TOKEN.Operator},
-		{"(%w+)", TOKEN.Operator, list = {"and", "or", "not"}},
+		{"(%a+)", TOKEN.Operator, list = {"and", "or", "not"}},
 		
 		-- keyword
-		{"(%w+)", TOKEN.Keyword, list = {"break", "do", "else", "elseif", "end", "for", "if", "in", "local", "repeat", "return", "then", "until", "while"}},
-		{"(%w+)", TOKEN.Keyword_Constant, list = {"true", "false", "nil", "_G"}},
+		{"(%a+)", TOKEN.Keyword, list = {"break", "do", "else", "elseif", "end", "for", "if", "in", "local", "repeat", "return", "then", "until", "while"}},
+		{"([%a_]+)", TOKEN.Keyword_Constant, list = {"true", "false", "nil", "_G"}},
 		
 		-- function
 		{"(function)", TOKEN.Keyword_Modifier, "func"},
