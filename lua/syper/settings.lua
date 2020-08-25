@@ -158,7 +158,7 @@ end
 -- end
 
 function Settings.loadBinds()
-	Settings.binds = util.JSONToTable(file.Read("syper/keybinds.json", "DATA"))
+	Settings.binds = Syper.jsonToTable(file.Read("syper/keybinds.json", "DATA"))
 end
 Settings.loadBinds()
 
@@ -184,7 +184,7 @@ end
 -- end
 
 function Settings.loadSettings()
-	Settings.settings = util.JSONToTable(file.Read("syper/settings.json", "DATA"))
+	Settings.settings = Syper.jsonToTable(file.Read("syper/settings.json", "DATA"))
 	Settings.settings.style_data = Settings.styles[Settings.settings.style]
 	Settings.rebuildStyle()
 	
