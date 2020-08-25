@@ -15,7 +15,7 @@ return [=[{
 	"tab_spaces": false,
 	
 	// Use spaces instead of tabs if any non space characters are infront of the caret
-	"tab_midline_spaces": false,
+	"tab_inline_spaces": false,
 	
 	// Smoothed scroll speed, set to 0 to disable
 	"scroll_speed": 1,
