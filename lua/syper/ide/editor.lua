@@ -95,7 +95,7 @@ function Line:SetData(line)
 	self.tokenholder:Clear()
 	
 	for i, token in ipairs(line.tokens) do
-		local text = getRenderString(token.text)
+		local text = getRenderString(token.str)
 		local label = self.tokenholder:Add("Panel")
 		label:SetWidth(i == #line.tokens and 9999 or surface.GetTextSize(text))
 		label:Dock(LEFT)
@@ -213,7 +213,42 @@ function Act.newline(self)
 	for caret_id, caret in ipairs(self.carets) do
 		if Settings.settings.indent_auto then
 			local e = select(2, string.find(self.content_lines[caret.y][1], "^\t*"))
+			local move = nil
+			
+			if Settings.settings.indent_smart then
+				local tokens = self.data.lines[caret.y].tokens
+				for i = #tokens, 1, -1 do
+					local token = tokens[i]
+					if caret.x > token.s then
+						local indent = self.mode.indent[token.str]
+						if indent and not indent[token.mode] then
+							local token2 = tokens[i + 1]
+							if token2 then
+								local bracket = self.mode.bracket2[token2.str]
+								if bracket and not bracket.ignore_mode[token2.mode] then
+									self:InsertStrAt(caret.x, caret.y, "\n" .. string.rep("\t", e + 1), true)
+									move = -e - 1
+								else
+									e = e + 1
+								end
+							else
+								e = e + 1
+							end
+							
+							break
+						else
+							local outdent = self.mode.outdent[token.str]
+							if outdent and not outdent[token.mode] then break end
+						end
+					end
+				end
+			end
+			
 			self:InsertStrAt(caret.x, caret.y, "\n" .. string.rep("\t", e), true)
+			
+			if move then
+				self:MoveCaret(caret_id, move, nil)
+			end
 		else
 			self:InsertStrAt(caret.x, caret.y, "\n", true)
 		end
@@ -637,11 +672,12 @@ function Editor:OnTextChanged()
 	local str = self.textentry:GetText()
 	self.textentry:SetText("")
 	
-	local bracket = nil
+	local bracket, bracket2 = nil, nil
 	if not self.is_pasted then
 		if str == "\n" then return end
 		if Settings.settings.auto_closing_bracket then
 			bracket = self.mode.bracket[str]
+			bracket2 = self.mode.bracket2[str]
 		end
 	elseif self.is_pasted then
 		self.is_pasted = false
@@ -663,11 +699,28 @@ function Editor:OnTextChanged()
 	
 	-- self:InsertStr(str)
 	for caret_id, caret in ipairs(self.carets) do
-		if bracket and not bracket.ignore_mode[self:GetToken(caret.x, caret.y).mode] then
+		print(sub(self.content_lines[caret.y][1], caret.x, caret.x), str)
+		if bracket2 and sub(self.content_lines[caret.y][1], caret.x, caret.x) == str then
+			if not bracket2.ignore_char[sub(self.content_lines[caret.y][1], caret.x - 1, caret.x - 1)] then
+				self:MoveCaret(caret_id, 1, nil)
+			else
+				self:InsertStrAt(caret.x, caret.y, str, true)
+			end
+		elseif bracket and not bracket.ignore_mode[self:GetToken(caret.x, caret.y).mode] then
 			self:InsertStrAt(caret.x, caret.y, str .. bracket.close, true)
 			self:MoveCaret(caret_id, -1, nil)
 		else
 			self:InsertStrAt(caret.x, caret.y, str, true)
+		end
+	end
+	
+	if Settings.settings.indent_smart then
+		for caret_id, caret in ipairs(self.carets) do
+			local str = string.match(self.content_lines[caret.y][1], "\t%s*(%a+)[\n%z]")
+			local outdent = self.mode.outdent[str]
+			if outdent then
+				self:RemoveStrAt(1, caret.y, 1, true)
+			end
 		end
 	end
 	
@@ -811,7 +864,6 @@ function Editor:GetToken(x, y)
 	local tokens = self.data.lines[y].tokens
 	for i = #tokens, 1, -1 do
 		local token = tokens[i]
-		print(x, token.s)
 		if x >= token.s then
 			return token
 		end
@@ -1025,7 +1077,7 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 	for caret_id, caret in ipairs(self.carets) do
 		local b = (caret.y == y and caret.x > x)
 		if caret.y > y or b then
-			self:MoveCaret(caret_id, b and -math.min(caret.x - x) or -length, nil)
+			self:MoveCaret(caret_id, b and -math.min(caret.x - x, length) or -length, nil)
 		end
 	end
 	
@@ -1062,6 +1114,11 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 	
 	if do_history then
 		self:AddHistory({Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem, length})
+	end
+	
+	-- Update visual caret pos
+	for caret_id, caret in ipairs(self.carets) do
+		self:MoveCaret(caret_id, nil, nil)
 	end
 	
 	return length, x, y, rem

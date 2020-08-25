@@ -1,23 +1,24 @@
 local TOKEN = Syper.TOKEN
+local ignore = {"mcomment", "mstring", "string"}
 
 return {
 	indent = {
-		{"function", TOKEN.Keyword_Modifier},
-		{"then", TOKEN.Keyword},
-		{"elseif", TOKEN.Keyword},
-		{"else", TOKEN.Keyword},
-		{"do", TOKEN.Keyword},
-		{"repeat", TOKEN.Keyword},
-		{"{", TOKEN.Punctuation},
-		{"%(", TOKEN.Punctuation},
+		{"function", ignore},
+		{"then", ignore},
+		{"elseif", ignore},
+		{"else", ignore},
+		{"do", ignore},
+		{"repeat", ignore},
+		{"{", ignore},
+		{"%(", ignore},
 	},
 	
 	outdent = {
-		{"elseif", TOKEN.Keyword},
-		{"else", TOKEN.Keyword},
-		{"end", TOKEN.Keyword},
-		{"}", TOKEN.Punctuation},
-		{"%)", TOKEN.Punctuation},
+		{"elseif", ignore},
+		{"else", ignore},
+		{"end", ignore},
+		{"}", ignore},
+		{"%)", ignore},
 	},
 	
 	open = {
@@ -34,8 +35,10 @@ return {
 	},
 	
 	bracket = {
-		["{"] = {"}", {"mcomment", "mstring", "string"}},
-		["("] = {")", {"mcomment", "mstring", "string"}},
-		["["] = {"]", {"mcomment", "mstring", "string"}},
+		["{"] = {"}", ignore},
+		["("] = {")", ignore},
+		["["] = {"]", ignore},
+		["'"] = {"'", ignore, {"\\"}},
+		["\""] = {"\"", ignore, {"\\"}},
 	}
 }
