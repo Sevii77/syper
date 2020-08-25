@@ -263,10 +263,9 @@ function Act.indent(self)
 		if caret.select_y and caret.select_y ~= caret.y then
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
 				self:InsertStrAt(1, y, "\t", true)
-				if y == caret.select_y then
-					caret.select_x = caret.select_x + 1
-				end
 			end
+			
+			caret.select_x = caret.select_x + 1
 		else
 			self:InsertStrAt(caret.x, caret.y, "\t", true)
 		end
@@ -282,13 +281,61 @@ function Act.outdent(self)
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
 				if string.sub(self.content_lines[y][1], 1, 1) == "\t" then
 					self:RemoveStrAt(1, y, 1, true)
-					if y == caret.select_y then
-						caret.select_x = caret.select_x - 1
-					end
 				end
 			end
+			
+			caret.select_x = caret.select_x - 1
 		else
 			self:InsertStrAt(caret.x, caret.y, "\t", true)
+		end
+	end
+	
+	self:PushHistoryBlock()
+	self:Rebuild()
+end
+
+function Act.comment(self)
+	local lines = self.content_lines
+	for caret_id, caret in ipairs(self.carets) do
+		local sy = caret.y
+		local ey = caret.select_y or caret.y
+		
+		if ey < sy then
+			local ey_ = ey
+			ey = sy
+			sy = ey_
+		end
+		
+		local level = math.huge
+		for y = sy, ey do
+			level = math.min(level, string.match(lines[y][1], "%s*()"))
+		end
+		
+		local remove = true
+		local cs = #self.mode.comment
+		for y = sy, ey do
+			if string.sub(lines[y][1], level, level + cs - 1) ~= self.mode.comment then
+				remove = false
+				break
+			end
+		end
+		
+		if remove then
+			for y = sy, ey do
+				self:RemoveStrAt(level, y, cs, true)
+			end
+			
+			if caret.select_x then
+				caret.select_x = caret.select_x - cs
+			end
+		else
+			for y = sy, ey do
+				self:InsertStrAt(level, y, self.mode.comment, true)
+			end
+			
+			if caret.select_x then
+				caret.select_x = caret.select_x + cs
+			end
 		end
 	end
 	

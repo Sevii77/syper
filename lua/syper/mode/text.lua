@@ -3,4 +3,5 @@ return {
 	outdent = {},
 	open = {},
 	bracket = {},
+	comment = "",
 }

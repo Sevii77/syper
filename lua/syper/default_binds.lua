@@ -11,7 +11,7 @@ return [=[{
 	"enter": {"act": "newline"},
 	"tab": {"act": "indent"},
 	"shift+tab": {"act": "outdent"},
-	
+	"ctrl+/": {"act": "comment"},
 	"ctrl+a": {"act": "selectall"},
 	
 	"backspace": {"act": "delete", "args": ["char", -1]},
