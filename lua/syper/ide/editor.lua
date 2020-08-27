@@ -86,77 +86,6 @@ end
 
 ----------------------------------------
 
-local Line = {}
-
-function Line:Init()
-	self.wrap = false
-	self.linenum = "1"
-	self.linenumwidth = 50
-	
-	self:SetMouseInputEnabled(false)
-	
-	self.linenumbar = self:Add("Panel")
-	self.linenumbar:SetWidth(self.linenumwidth)
-	self.linenumbar:Dock(LEFT)
-	self.linenumbar:SetMouseInputEnabled(false)
-	self.linenumbar.Paint = function(_, w, h)
-		surface.SetDrawColor(settings.style_data.linenumber_background)
-		surface.DrawRect(0, 0, w, h)
-		surface.SetTextColor(settings.style_data.linenumber)
-		surface.SetFont("syper_syntax_1")
-		local tw, th = surface.GetTextSize(self.linenum)
-		surface.SetTextPos(w - tw - 20, 0)
-		surface.DrawText(self.linenum)
-	end
-	
-	self.tokenholder = self:Add("Panel")
-	self.tokenholder:Dock(FILL)
-	self.tokenholder:SetMouseInputEnabled(false)
-end
-
-function Line:SetData(tokens)
-	self.tokenholder:Clear()
-	
-	for i, token in ipairs(tokens) do
-		local text = getRenderString(token.str)
-		local label = self.tokenholder:Add("Panel")
-		label:SetWidth(i == #tokens and 9999 or surface.GetTextSize(text))
-		label:Dock(LEFT)
-		label:SetMouseInputEnabled(false)
-		label.Paint = function(self, w, h)
-			local clr = settings.style_data[token.token]
-			if clr.b then
-				surface.SetDrawColor(clr.b)
-				surface.DrawRect(0, 0, w, h)
-			end
-			
-			surface.SetTextColor(clr.f)
-			surface.SetFont("syper_syntax_" .. token.token)
-			surface.SetTextPos(0, 0)
-			surface.DrawText(text)
-		end
-	end
-end
-
-function Line:SetWrap(state)
-	self.wrap = state
-	
-	-- stuff here
-end
-
-function Line:SetLineNumber(num)
-	self.linenum = tostring(num)
-end
-
-function Line:SetLineNumberSize(width)
-	self.linenumwidth = width
-	self.linenumbar:SetWidth(self.linenumwidth)
-end
-
-vgui.Register("SyperEditorLine", Line, "Panel")
-
-----------------------------------------
-
 local Act = {}
 
 function Act.undo(self)
@@ -596,7 +525,7 @@ function Editor:Init()
 		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.highlight)
 	end
 	self.scrollbar.btnGrip.Paint = function(_, w, h)
-		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.linenumber)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.gutter_foreground)
 	end
 	
 	self.lineholder_dock = self:Add("Panel")
@@ -605,18 +534,42 @@ function Editor:Init()
 	
 	self.lineholder = self.lineholder_dock:Add("Panel")
 	self.lineholder:SetMouseInputEnabled(false)
-	self.lineholder.PerformLayout = function()
-		local offset = 0
-		for y, line in ipairs(self.content_data.lines) do
-			local panel = line[6]
-			panel:SetWidth(self.lineholder:GetSize())
-			panel:SetPos(0, offset)
-			
-			offset = offset + select(2, panel:GetSize())
-		end
-	end
 	self.lineholder.Paint = function(_, w, h)
 		local th = settings.font_size
+		local gw = self.gutter_size
+		
+		-- content
+		surface.SetDrawColor(settings.style_data.gutter_background)
+		surface.DrawRect(0, 0, gw, h)
+		
+		local y = self:FirstVisibleLine()
+		for y = y, math.min(self.content_data:GetLineCount(), y + self:VisibleLineCount()) do
+			local offset_y = y * th - th
+			
+			local linenum = tostring(settings.gutter_relative and y - self.carets[1].y or y)
+			surface.SetTextColor(settings.style_data.gutter_foreground)
+			surface.SetFont("syper_syntax_1")
+			local tw = surface.GetTextSize(linenum)
+			surface.SetTextPos(gw - tw - settings.gutter_margin, offset_y)
+			surface.DrawText(linenum)
+			
+			local offset_x = gw
+			for i, token in ipairs(self.content_data.lines[y][6]) do
+				if token[5] then
+					surface.SetDrawColor(token[5])
+					surface.DrawRect(offset_x, offset_y, token[1], th)
+				end
+				
+				surface.SetTextColor(token[4])
+				surface.SetFont(token[3])
+				surface.SetTextPos(offset_x, offset_y)
+				surface.DrawText(token[2])
+				
+				offset_x = offset_x + token[1]
+			end
+		end
+		
+		-- carets
 		local lines = self.content_data.lines
 		for _, caret in ipairs(self.carets) do
 			if caret.select_x then
@@ -823,6 +776,12 @@ function Editor:UpdateScrollbar()
 	self.scrollbar:SetUp(s, s + settings.font_size * (#self.content_data.lines - 1) + 1)
 end
 
+function Editor:UpdateGutter()
+	surface.SetFont("syper_syntax_1")
+	local w = settings.gutter_margin * 2 + surface.GetTextSize(tostring(-self.content_data:GetLineCount()))
+	self.gutter_size = w
+end
+
 function Editor:DoScroll(delta)
 	local speed = settings.scroll_speed
 	self.scrolltarget = math.Clamp(self.scrolltarget + delta, 0, self.scrollbar.CanvasSize)
@@ -900,18 +859,21 @@ function Editor:Rebuild(line_count, start_line)
 	
 	local h = settings.font_size
 	for _, y in ipairs(self.content_data:RebuildDirty(256)) do
-		local line = self.content_data.lines[y][6]
-		if not line then
-			line = self.lineholder:Add("SyperEditorLine")
-			line:SetHeight(h)
-			
-			self.content_data.lines[y][6] = line
+		local line = {}
+		for i, token in ipairs(self.content_data:GetLineTokens(y)) do
+			local text = getRenderString(token.str)
+			local clr = settings.style_data[token.token]
+			local font = "syper_syntax_" .. token.token
+			surface.SetFont(font)
+			local w = surface.GetTextSize(text)
+			line[i] = {w, text, font, clr.f, clr.b}
 		end
 		
-		line:SetData(self.content_data:GetLineTokens(y))
+		self.content_data.lines[y][6] = line
 	end
 	
 	self:UpdateScrollbar()
+	self:UpdateGutter()
 	
 	print("rebuild", SysTime() - t)
 end

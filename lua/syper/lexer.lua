@@ -79,10 +79,6 @@ function ContentTable:InsertLine(y, str)
 end
 
 function ContentTable:RemoveLine(y)
-	if self.lines[y][6] then
-		self.lines[y][6]:Remove()
-	end
-	
 	table.remove(self.lines, y)
 	
 	local dirty = {}

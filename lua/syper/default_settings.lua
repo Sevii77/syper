@@ -8,6 +8,12 @@ return [=[{
 	// Syntax style
 	"style": "monokai",
 	
+	// Space to keep around the line numbers
+	"gutter_margin": 10,
+	
+	// Relative line numbers
+	"gutter_relative": false,
+	
 	// Tab size
 	"tab_size": 4,
 	
