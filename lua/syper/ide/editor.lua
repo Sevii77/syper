@@ -36,7 +36,7 @@ hook.Add("SyperSettings", "syper_editor", settingsUpdate)
 
 local function getRenderString(str)
 	local tabsize = settings.tab_size
-	local ctrl = settings.show_controll_characters
+	local ctrl = settings.show_control_characters
 	local s = ""
 	
 	for i = 1, len(str) do

@@ -42,7 +42,7 @@ return [=[{
 	"utf8": false,
 	
 	// Display controll characters as their hex value <0x10>
-	"show_controll_characters": false,
+	"show_control_characters": false,
 	
 	// Characters to ignore and dont handle
 	"ignore_chars": ["`"]
