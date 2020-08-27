@@ -28,8 +28,12 @@ return {
 		{"(0x%x+)", TOKEN.Number},
 		{"(%d+%.?%d*)", TOKEN.Number},
 		
+		-- ... and self
+		{"(%.%.%.)", TOKEN.Identifier_Modifier},
+		{"(self)", TOKEN.Identifier_Modifier},
+		
 		-- operator
-		{"([%+%-%*/%%^#=~<>])", TOKEN.Operator},
+		{"([%+%-%*/%%^#=~<>]+)", TOKEN.Operator, list = {"+", "-", "*", "/", "%", "^", "#", "==", "~=", "<=", ">=", "<", ">", "="}, list_nomatch = TOKEN.Error},
 		{"(%.%.)", TOKEN.Operator},
 		{"(%a+)", TOKEN.Operator, list = {"and", "or", "not"}},
 		

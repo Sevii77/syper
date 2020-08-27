@@ -29,14 +29,19 @@ local function find(str, start, patterns, repl)
 	local finds = {}
 	for i, pattern in ipairs(patterns) do
 		local s, _, str, cap = string.find(str, repl and string.gsub(pattern[1], "<CAP>", repl) or pattern[1], start)
-		if s and (not pattern.list or pattern.list[str]) and (not pattern.shebang or start == 1) then
-			finds[#finds + 1] = {
-				s = s,
-				e = s + #str - 1,
-				str = str,
-				cap = cap,
-				pattern = pattern
-			}
+		if s and (not pattern.shebang or start == 1) then
+			local token = (not pattern.list or pattern.list[str]) and pattern[2] or pattern.list_nomatch
+			
+			if token then
+				finds[#finds + 1] = {
+					s = s,
+					e = s + #str - 1,
+					str = str,
+					cap = cap,
+					token = token,
+					mode = pattern[3]
+				}
+			end
 		end
 	end
 	
@@ -179,12 +184,12 @@ function ContentTable:RebuildLine(y)
 		local fdata = find(line[1], curbyte, lexer[mode], mode_repl)
 		if not fdata then break end
 		
-		if fdata.pattern[3] then
-			mode = fdata.pattern[3]
+		if fdata.mode then
+			mode = fdata.mode
 			mode_repl = fdata.cap
 		end
 		
-		line[3][#line[3] + 1] = {token = fdata.pattern[2], str = fdata.str, mode = mode, mode_repl = mode_repl, s = fdata.s, e = fdata.e}
+		line[3][#line[3] + 1] = {token = fdata.token, str = fdata.str, mode = mode, mode_repl = mode_repl, s = fdata.s, e = fdata.e}
 		curbyte = fdata.e + 1
 		
 		if fdata.str[#fdata.str] == "\n" then break end

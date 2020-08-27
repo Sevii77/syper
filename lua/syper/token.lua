@@ -15,4 +15,5 @@ Syper.TOKEN = {
 	Callable = 14,
 	Function = 15,
 	Argument = 16,
+	Identifier_Modifier = 17,
 }
