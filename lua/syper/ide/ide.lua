@@ -19,6 +19,7 @@ vgui.Register("SyperIDE", IDE, "DFrame")
 
 function Syper.OpenIDE()
 	local ide = vgui.Create("SyperIDE")
+	ide:SetSizable(true)
 	ide:SetSize(1500, 800)
 	-- ide:Center()
 	ide:MakePopup()
