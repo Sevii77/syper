@@ -26,7 +26,10 @@ return {
 		
 		-- number
 		{"(0x%x+)", TOKEN.Number},
+		{"(%d*%.%d*[%deE]%-?%d+)", TOKEN.Number},
+		{"(%d+[%deE]%-?%d+)", TOKEN.Number},
 		{"(%d+%.?%d*)", TOKEN.Number},
+		{"(%.%d+)", TOKEN.Number},
 		
 		-- ... and self
 		{"(%.%.%.)", TOKEN.Identifier_Modifier},
@@ -45,7 +48,7 @@ return {
 		{"(function)", TOKEN.Keyword_Modifier, "func"},
 		
 		-- function call
-		{"([%a_][%w_]*)[%w_.:]*[%s]?[%(%{\"']", TOKEN.Callable},
+		{"([%a_][%w_]*)[%w_.]*[%s]?[%(%{\"']", TOKEN.Callable},
 		
 		-- identifier
 		{"([%a_][%w_]*)", TOKEN.Identifier},
@@ -70,6 +73,7 @@ return {
 	},
 	
 	string = {
+		{"(\\%d%d?%d?)", TOKEN.String_Escape},
 		{"(\\%g)", TOKEN.String_Escape},
 		{"(<CAP>)", TOKEN.String, "main"},
 		{"(\\\n)", TOKEN.String_Escape},
