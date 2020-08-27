@@ -538,38 +538,7 @@ function Editor:Init()
 		local th = settings.font_size
 		local gw = self.gutter_size
 		
-		-- content
-		surface.SetDrawColor(settings.style_data.gutter_background)
-		surface.DrawRect(0, 0, gw, h)
-		
-		local y = self:FirstVisibleLine()
-		for y = y, math.min(self.content_data:GetLineCount(), y + self:VisibleLineCount()) do
-			local offset_y = y * th - th
-			
-			local linenum = tostring(settings.gutter_relative and y - self.carets[1].y or y)
-			surface.SetTextColor(settings.style_data.gutter_foreground)
-			surface.SetFont("syper_syntax_1")
-			local tw = surface.GetTextSize(linenum)
-			surface.SetTextPos(gw - tw - settings.gutter_margin, offset_y)
-			surface.DrawText(linenum)
-			
-			local offset_x = gw
-			for i, token in ipairs(self.content_data.lines[y][6]) do
-				if token[5] then
-					surface.SetDrawColor(token[5])
-					surface.DrawRect(offset_x, offset_y, token[1], th)
-				end
-				
-				surface.SetTextColor(token[4])
-				surface.SetFont(token[3])
-				surface.SetTextPos(offset_x, offset_y)
-				surface.DrawText(token[2])
-				
-				offset_x = offset_x + token[1]
-			end
-		end
-		
-		-- carets
+		-- caret select
 		local lines = self.content_data.lines
 		for _, caret in ipairs(self.carets) do
 			if caret.select_x then
@@ -601,6 +570,37 @@ function Editor:Init()
 					local tw = surface.GetTextSize(getRenderString(sub(lines[ey][1], 1, ex)))
 					surface.DrawRect(self.gutter_size, ey * th - th, tw, th)
 				end
+			end
+		end
+		
+		-- content
+		surface.SetDrawColor(settings.style_data.gutter_background)
+		surface.DrawRect(0, 0, gw, h)
+		
+		local y = self:FirstVisibleLine()
+		for y = y, math.min(self.content_data:GetLineCount(), y + self:VisibleLineCount()) do
+			local offset_y = y * th - th
+			
+			local linenum = tostring(settings.gutter_relative and y - self.carets[1].y or y)
+			surface.SetTextColor(settings.style_data.gutter_foreground)
+			surface.SetFont("syper_syntax_1")
+			local tw = surface.GetTextSize(linenum)
+			surface.SetTextPos(gw - tw - settings.gutter_margin, offset_y)
+			surface.DrawText(linenum)
+			
+			local offset_x = gw
+			for i, token in ipairs(self.content_data.lines[y][6]) do
+				if token[5] then
+					surface.SetDrawColor(token[5])
+					surface.DrawRect(offset_x, offset_y, token[1], th)
+				end
+				
+				surface.SetTextColor(token[4])
+				surface.SetFont(token[3])
+				surface.SetTextPos(offset_x, offset_y)
+				surface.DrawText(token[2])
+				
+				offset_x = offset_x + token[1]
 			end
 		end
 		
