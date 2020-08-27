@@ -589,10 +589,11 @@ function Editor:Init()
 			surface.DrawText(linenum)
 			
 			local offset_x = gw
-			for i, token in ipairs(self.content_data.lines[y][6]) do
+			local line = self.content_data.lines[y][6]
+			for i, token in ipairs(line) do
 				if token[5] then
 					surface.SetDrawColor(token[5])
-					surface.DrawRect(offset_x, offset_y, token[1], th)
+					surface.DrawRect(offset_x, offset_y, i == #line and 9999 or token[1], th)
 				end
 				
 				surface.SetTextColor(token[4])
