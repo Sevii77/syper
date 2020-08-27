@@ -13,6 +13,7 @@ return [=[{
 	"shift+tab": {"act": "outdent"},
 	"ctrl+/": {"act": "comment"},
 	"ctrl+a": {"act": "selectall"},
+	"ctrl+s": {"act": "save"},
 	
 	"backspace": {"act": "delete", "args": ["char", -1]},
 	"delete": {"act": "delete", "args": ["char", 1]},

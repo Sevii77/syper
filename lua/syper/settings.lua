@@ -26,6 +26,10 @@ local Settings = Syper.Settings
 ----------------------------------------
 -- Keybinds
 
+if not file.Exists("syper/keybinds.json", "DATA") then
+	file.Write("syper/keybinds.json", "{\n\t\n}")
+end
+
 Settings.keyid = {
 	"0",
 	"1",
@@ -153,23 +157,31 @@ function Settings.lookupBind(ctrl, shift, alt, key)
 		key]
 end
 
--- if not file.Exists("syper/keybinds.json", "DATA") then
-	file.Write("syper/keybinds.json", include("./default_binds.lua"))
--- end
-
 function Settings.loadBinds()
-	Settings.binds = Syper.jsonToTable(file.Read("syper/keybinds.json", "DATA"))
+	Settings.binds = Syper.jsonToTable(include("syper/default_binds.lua"))
+	if not pcall(function()
+		for k, v in pairs(Syper.jsonToTable(file.Read("syper/keybinds.json", "DATA"))) do
+			Settings.binds[k] = v
+		end
+	end) then
+		ErrorNoHalt("Invalid json in keybinds\n")
+	end
 end
+
 Settings.loadBinds()
 
 ----------------------------------------
 -- Settings
 
+if not file.Exists("syper/settings.json", "DATA") then
+	file.Write("syper/settings.json", "{\n\t\n}")
+end
+
 function Settings.rebuildStyle()
 	for _, i in pairs(Syper.TOKEN) do
 		surface.CreateFont("syper_syntax_" .. i, {
 			font = Settings.settings.font,
-			size = Settings.settings.size,
+			size = Settings.settings.font_size,
 			italic = Settings.settings.style_data[i].i
 		})
 	end
@@ -179,15 +191,20 @@ function Settings.lookupSetting(name)
 	return Settings.settings[name]
 end
 
--- if not file.Exists("syper/settings.json", "DATA") then
-	file.Write("syper/settings.json", include("./default_settings.lua"))
--- end
-
 function Settings.loadSettings()
-	Settings.settings = Syper.jsonToTable(file.Read("syper/settings.json", "DATA"))
+	Settings.settings = Syper.jsonToTable(include("syper/default_settings.lua"))
+	if not pcall(function()
+		for k, v in pairs(Syper.jsonToTable(file.Read("syper/settings.json", "DATA"))) do
+			Settings.settings[k] = v
+		end
+	end) then
+		ErrorNoHalt("Invalid json in settings\n")
+	end
+	
 	Settings.settings.style_data = Settings.styles[Settings.settings.style]
 	Settings.rebuildStyle()
 	
 	hook.Run("SyperSettings", Settings.settings)
 end
+
 Settings.loadSettings()

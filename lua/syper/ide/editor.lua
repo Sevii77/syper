@@ -5,6 +5,8 @@ local TOKEN = Syper.TOKEN
 
 ----------------------------------------
 
+local editors = {}
+
 local settings
 local len, sub, ignore_chars, tab_str, tab_strsize
 local function settingsUpdate(s)
@@ -26,6 +28,14 @@ local function settingsUpdate(s)
 	else
 		tab_str = "\t"
 		tab_strsize = 1
+	end
+	
+	for editor, _ in pairs(editors) do
+		editor:Refresh()
+		
+		for i = 1, #editor.carets do
+			editor:MoveCaret(i, nil, nil)
+		end
 	end
 end
 
@@ -498,10 +508,11 @@ function Editor:Init()
 	self.history = {}
 	self.history_pointer = 0
 	self.history_block = {}
-	self.lines = {}
 	self.carets = {}
 	self.caretmode = 0
 	self.gutter_size = 50
+	self.editable = true
+	self.path = nil
 	
 	self.textentry = self:Add("TextEntry")
 	self.textentry:SetSize(0, 0)
@@ -620,6 +631,12 @@ function Editor:Init()
 	self:SetSyntax("lua")
 	self:Rebuild()
 	self:AddCaret(1, 1)
+	
+	editors[self] = true
+end
+
+function Editor:OnRemove()
+	editors[self] = nil
 end
 
 function Editor:Paint(w, h)
@@ -654,8 +671,6 @@ function Editor:OnKeyCodeTyped(key)
 	
 	if bind then
 		local act = self.Act[bind.act]
-		
-		-- Gotta check since there are binds that are handled by different things such as changing active tab
 		if act then
 			act(self, unpack(bind.args or {}))
 			
@@ -663,7 +678,7 @@ function Editor:OnKeyCodeTyped(key)
 		end
 	end
 	
-	return false
+	return self.ide:OnKeyCodeTyped(key)
 end
 
 function Editor:OnMousePressed(key)
@@ -680,12 +695,14 @@ function Editor:OnMousePressed(key)
 	
 	if bind then
 		local act = self.Act[bind.act]
-		
-		-- Gotta check since there are binds that are handled by different things such as changing active tab
 		if act then
 			act(self, unpack(bind.args or {}))
+			
+			return true
 		end
 	end
+	
+	return self.ide:OnMousePressed(key)
 end
 
 function Editor:OnMouseWheeled(delta)
@@ -693,7 +710,6 @@ function Editor:OnMouseWheeled(delta)
 end
 
 function Editor:OnTextChanged()
-	-- print(#self.textentry:GetText(), select(2, string.gsub(self.textentry:GetText(), "\n", "")), self.textentry:GetText())
 	local str = self.textentry:GetText()
 	self.textentry:SetText("")
 	
@@ -768,12 +784,12 @@ function Editor:OnGetFocus()
 end
 
 function Editor:PerformLayout()
-	self.lineholder:SetSize(self.lineholder_dock:GetSize(), 99999)
+	self.lineholder:SetSize(self.lineholder_dock:GetWide(), 99999)
 	self:UpdateScrollbar()
 end
 
 function Editor:UpdateScrollbar()
-	local s = select(2, self.lineholder_dock:GetSize())
+	local s = self.lineholder_dock:GetTall()
 	self.scrollbar:SetUp(s, s + settings.font_size * (#self.content_data.lines - 1) + 1)
 end
 
@@ -802,7 +818,7 @@ function Editor:OnVScroll(scroll)
 end
 
 function Editor:VisibleLineCount()
-	return math.ceil(select(2, self.lineholder_dock:GetSize()) / settings.font_size)
+	return math.ceil(self.lineholder_dock:GetTall() / settings.font_size)
 end
 
 function Editor:FirstVisibleLine()
@@ -855,6 +871,60 @@ function Editor:Redo()
 	self:Rebuild()
 end
 
+function Editor:GetContentStr()
+	local str = {}
+	for i = 1, self.content_data:GetLineCount() do
+		str[i] = self.content_data:GetLineStr(i)
+	end
+	
+	str[#str] = string.sub(str[#str], 1, -2)
+	
+	return table.concat(str, "")
+end
+
+function Editor:Save()
+	if not self.path then return false end
+	
+	local dirs, p = {}, 1
+	while true do
+		local s = string.find(self.path, "/", p)
+		dirs[#dirs + 1] = string.sub(self.path, p, s)
+		if not s then break end
+		p = s + 1
+	end
+	
+	for i = 1, #dirs - 1 do
+		local dir = dirs[i]
+		if not file.Exists(dir, "DATA") then
+			file.CreateDir(dir)
+		end
+	end
+	
+	file.Write(self.path, self:GetContentStr())
+	
+	if self.OnSave then
+		self:OnSave()
+	end
+	
+	return true
+end
+
+function Editor:ReloadFile()
+	self:SetContent(file.Read(self.path, "DATA"))
+end
+
+function Editor:SetPath(path)
+	if string.find(path, "[\":]") then return false end
+	
+	self.path = path
+	
+	return true
+end
+
+function Editor:Refresh()
+	self:SetContent(self:GetContentStr())
+end
+
 function Editor:Rebuild(line_count, start_line)
 	local t = SysTime()
 	
@@ -894,6 +964,14 @@ function Editor:SetSyntax(syntax)
 	self.mode = Mode.modes[syntax]
 	self.content_data = Lexer.createContentTable(self.lexer, self.mode)
 	self.content_data:ModifyLine(1, "\n")
+end
+
+function Editor:SetEditable(state)
+	self.editable = state
+end
+
+function Editor:SetIDE(ide)
+	self.ide = ide
 end
 
 function Editor:ClearCarets()
@@ -995,6 +1073,8 @@ function Editor:InsertStr(str)
 end
 
 function Editor:InsertStrAt(x, y, str, do_history)
+	if not self.editable then return end
+	
 	if do_history then
 		self:AddHistory({Editor.RemoveStrAt, Editor.InsertStrAt, x, y, len(str), str})
 	end
@@ -1073,6 +1153,8 @@ function Editor:RemoveSelection()
 end
 
 function Editor:RemoveStrAt(x, y, length, do_history)
+	if not self.editable then return end
+	
 	local cd = self.content_data
 	local rem = {}
 	local length_org = length
@@ -1140,6 +1222,24 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 	end
 	
 	return length, x, y, rem
+end
+
+function Editor:SetContent(str)
+	local lines, p = {}, 1
+	while true do
+		local s = string.find(str, "\n", p)
+		lines[#lines + 1] = string.sub(str, p, s)
+		if not s then break end
+		p = s + 1
+	end
+	
+	self.content_data = Lexer.createContentTable(self.lexer, self.mode)
+	for y, str in ipairs(lines) do
+		self.content_data:ModifyLine(y, str)
+	end
+	self.content_data:AppendToLine(#lines, "\n")
+	
+	self:Rebuild()
 end
 
 vgui.Register("SyperEditor", Editor, "Panel")
