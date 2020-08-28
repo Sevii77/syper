@@ -1,4 +1,7 @@
 return [=[{
+	"ctrl+s": {"act": "save"},
+	"ctrl+g": {"act": "command_overlay", "args": [":"]},
+	
 	"ctrl+z": {"act": "undo"},
 	"ctrl+y": {"act": "redo"},
 	"ctrl+shift+z": {"act": "redo"},
@@ -13,7 +16,6 @@ return [=[{
 	"shift+tab": {"act": "outdent"},
 	"ctrl+/": {"act": "comment"},
 	"ctrl+a": {"act": "selectall"},
-	"ctrl+s": {"act": "save"},
 	
 	"mouse_1": {"act": "setcaret"},
 	"ctrl+mouse_1": {"act": "setcaret", "args": [true]},

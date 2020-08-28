@@ -585,6 +585,11 @@ function Act.move(self, typ, count_dir, selc)
 	end
 end
 
+function Act.goto_line(self, line)
+	self:ClearCarets()
+	self:SetCaret(1, 1, math.Clamp(settings.gutter_relative and (self.carets[1].y + line) or line, 1, self.content_data:GetLineCount()))
+end
+
 ----------------------------------------
 
 local Editor = {Act = Act}
