@@ -27,10 +27,12 @@ end
 
 ----------------------------------------
 
-local DFrame = vgui.GetControlTable("DFrame")
+local DFrame
 local IDE = {Act = Act}
 
 function IDE:Init()
+	DFrame = DFrame or vgui.GetControlTable("DFrame")
+	
 	-- TODO: make custom, this shit ugly af
 	local bar = self:Add("DMenuBar")
 	bar:Dock(TOP)

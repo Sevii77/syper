@@ -146,6 +146,11 @@ Settings.keyid = {
 	[113] = "mouse_down",
 }
 
+Settings.idkey = {}
+for k, v in pairs(Settings.keyid) do
+	Settings.idkey[v] = k
+end
+
 function Settings.lookupBind(ctrl, shift, alt, key)
 	local key = Settings.keyid[key]
 	if not key then return end
@@ -155,6 +160,19 @@ function Settings.lookupBind(ctrl, shift, alt, key)
 		(shift and "shift+" or "") ..
 		(alt and "alt+" or "") ..
 		key]
+end
+
+function Settings.lookupAct(act)
+	for k, v in pairs(Settings.binds) do
+		if v.act == act then
+			return {
+				string.find(k, "ctrl+") and true or false,
+				string.find(k, "ctrl+") and true or false,
+				string.find(k, "ctrl+") and true or false,
+				Settings.idkey[string.match(k, "[%w_]+$")]
+			}
+		end
+	end
 end
 
 function Settings.loadBinds()

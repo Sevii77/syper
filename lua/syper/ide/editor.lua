@@ -32,10 +32,6 @@ local function settingsUpdate(s)
 	
 	for editor, _ in pairs(editors) do
 		editor:Refresh()
-		
-		for i = 1, #editor.carets do
-			editor:MoveCaret(i, nil, nil)
-		end
 	end
 end
 
@@ -44,14 +40,15 @@ hook.Add("SyperSettings", "syper_editor", settingsUpdate)
 
 ----------------------------------------
 
-local function getRenderString(str)
+local function getRenderString(str, offset)
 	local tabsize = settings.tab_size
 	local ctrl = settings.show_control_characters
 	local s = ""
+	offset = offset or 0
 	
 	for i = 1, len(str) do
 		local c = sub(str, i, i)
-		s = s .. (c == "\t" and string.rep(" ", tabsize - (len(s) % tabsize)) or ((not ctrl or string.find(c, "%C")) and c or ("<0x" .. string.byte(c) .. ">")))
+		s = s .. (c == "\t" and string.rep(" ", tabsize - ((len(s) + offset) % tabsize)) or ((not ctrl or string.find(c, "%C")) and c or ("<0x" .. string.byte(c) .. ">")))
 	end
 	
 	return s
@@ -62,8 +59,11 @@ local function renderToRealPos(str, pos)
 	local l = 0
 	
 	for i = 1, len(str) do
-		l = l + (sub(str, i, i) == "\t" and tabsize - (l % tabsize) or 1)
-		if l >= pos then return i end
+		local t = sub(str, i, i) == "\t"
+		local c = tabsize - (l % tabsize)
+		l = l + (t and c or 1)
+		-- if l >= pos then return i end
+		if (t and (l - math.floor(c / 2 - 0.5)) or l) >= pos then return i end
 	end
 	
 	return len(str)
@@ -94,6 +94,11 @@ local function getTabStr(x, line)
 	return "\t"
 end
 
+local function matchWord(str, x)
+	local s, e = string.match(sub(str, 1, x), "()[%w_]*$"), (string.match(sub(str, x), "^[%w_]*()") + x - 1)
+	return s, e, sub(str, s, e)
+end
+
 ----------------------------------------
 
 local Act = {}
@@ -114,7 +119,8 @@ function Act.copy(self)
 	end
 	
 	local lines = self.content_data.lines
-	for caret_id, caret in ipairs(self.carets) do
+	for caret_id = #self.carets, 1, -1 do
+		local caret = self.carets[caret_id]
 		if caret.select_x then
 			local sx, sy = caret.x, caret.y
 			local ex, ey = caret.select_x, caret.select_y
@@ -133,17 +139,17 @@ function Act.copy(self)
 				add(sub(lines[ey][1], 1, ex - 1))
 			end
 			
-			if caret_id ~= #self.carets then
+			if caret_id > 1 then
 				add("\n")
 			end
 		end
 	end
 	
 	if empty then
-		for caret_id, caret in ipairs(self.carets) do
-			add(lines[caret.y][1])
+		for caret_id = #self.carets, 1, -1 do
+			add(lines[self.carets[caret_id].y][1])
 			
-			if caret_id ~= #self.carets then
+			if caret_id > 1 then
 				add("\n")
 			end
 		end
@@ -158,7 +164,9 @@ end
 function Act.cut(self)
 	Act.copy(self)
 	
-	self:RemoveSelection()
+	if self:HasSelection() then
+		self:RemoveSelection()
+	end
 end
 
 function Act.paste(self)
@@ -171,6 +179,12 @@ function Act.pasteindent(self)
 end
 
 function Act.newline(self)
+	if self:HasSelection() then
+		self:RemoveSelection()
+	end
+	
+	-- TODO: fix bug with multiple caret smart auto indent
+	
 	for caret_id, caret in ipairs(self.carets) do
 		if settings.indent_auto then
 			local spacer, e = string.match(self.content_data:GetLineStr(caret.y), "^([^\n%S]*)()")
@@ -241,7 +255,7 @@ function Act.outdent(self)
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_y and caret.select_y ~= caret.y then
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
-				if string.sub(ines[y][1], 1, tab_strsize) == tab_str then
+				if string.sub(lines[y][1], 1, tab_strsize) == tab_str then
 					self:RemoveStrAt(1, y, tab_strsize, true)
 				end
 			end
@@ -317,20 +331,96 @@ function Act.selectall(self)
 	end
 end
 
+local lx, ly, stage, last_id
+function Act.setcaret(self, new)
+	local sx, sy = self:GetCursorAsCaret()
+	local caret_id
+	if lx == sx and ly == sy then
+		caret_id = last_id
+	else
+		if new then
+			caret_id = self:AddCaret(sx, sy)
+			for k, v in pairs(self:ClearExcessCarets()) do
+				if k == caret_id then
+					caret_id = v
+				end
+			end
+		else
+			self:ClearCarets()
+			caret_id = 1
+		end
+		stage = 0
+	end
+	local caret = self.carets[caret_id]
+	
+	if RealTime() - self.last_click < 1 and stage ~= 0 and lx == sx and ly == sy then
+		if stage == 2 then
+			caret.select_x = 1
+			caret.select_y = sy
+			if sy < self.content_data:GetLineCount() then
+				self:SetCaret(caret_id, 1, sy + 1)
+			else
+				self:SetCaret(caret_id, self.content_data:GetLineLength(sy), sy)
+			end
+			stage = 0
+		else
+			local s, e = matchWord(self.content_data:GetLineStr(sy), sx)
+			caret.select_x = s
+			caret.select_y = sy
+			self:SetCaret(caret_id, e, sy)
+			stage = 2
+		end
+	else
+		caret.select_x = nil
+		caret.select_y = nil
+		self:SetCaret(caret_id, sx, sy)
+		stage = 1
+	end
+	
+	for k, v in pairs(self:ClearExcessCarets()) do
+		if k == caret_id then
+			caret_id = v
+		end
+	end
+	
+	last_id = caret_id
+	lx, ly = sx, sy
+	
+	self:RequestCapture(true)
+	local key = Settings.lookupAct("setcaret")
+	self.on_mouse_hold[#self.on_mouse_hold + 1] = {key, function()
+		local caret = self.carets[caret_id]
+		if not caret then return end
+		local x, y = self:GetCursorAsCaret()
+		self:SetCaret(caret_id, x, y)
+		if sx ~= x or sy ~= y then
+			caret.select_x = sx
+			caret.select_y = sy
+		else
+			caret.select_x = nil
+			caret.select_y = nil
+		end
+		
+		for k, v in pairs(self:ClearExcessCarets()) do
+			if k == caret_id then
+				caret_id = v
+			end
+		end
+	end}
+	
+	self.on_mouse_release[#self.on_mouse_release + 1] = {key, function()
+		self:RequestCapture(false)
+	end}
+	
+	self.caretblink = RealTime()
+end
+
 function Act.writestr(self, str)
 	self:InsertStr(str)
 end
 
 function Act.delete(self, typ, count_dir)
-	local has_selection = false
-	for _, caret in ipairs(self.carets) do
-		if caret.select_x then
-			has_selection = true
-			break
-		end
-	end
-	
-	if has_selection then
+	if self:HasSelection() then
 		self:RemoveSelection()
 	elseif typ == "char" then
 		if count_dir == -1 and settings.auto_closing_bracket then
@@ -389,8 +479,6 @@ function Act.delete(self, typ, count_dir)
 		self:PushHistoryBlock()
 		self:Rebuild()
 	end
-	
-	self:ClearExcessCarets()
 end
 
 function Act.move(self, typ, count_dir, selc)
@@ -495,8 +583,6 @@ function Act.move(self, typ, count_dir, selc)
 			self:SetCaret(caret_id, lines[#lines][2], #lines)
 		end
 	end
-	
-	self:ClearExcessCarets()
 end
 
 ----------------------------------------
@@ -509,10 +595,15 @@ function Editor:Init()
 	self.history_pointer = 0
 	self.history_block = {}
 	self.carets = {}
-	self.caretmode = 0
+	self.caretmode = RealTime()
+	self.caretblink = 0
 	self.gutter_size = 50
 	self.editable = true
 	self.path = nil
+	self.on_mouse_hold = {}
+	self.on_mouse_release = {}
+	self.last_click = 0
+	self.mouse_captures = 0
 	
 	self.textentry = self:Add("TextEntry")
 	self.textentry:SetSize(0, 0)
@@ -550,11 +641,12 @@ function Editor:Init()
 		local gw = self.gutter_size
 		
 		-- caret select
+		surface.SetFont("syper_syntax_1")
+		surface.SetDrawColor(settings.style_data.highlight)
+		
 		local lines = self.content_data.lines
 		for _, caret in ipairs(self.carets) do
 			if caret.select_x then
-				surface.SetDrawColor(settings.style_data.highlight)
-				
 				local sx, sy = caret.x, caret.y
 				local ex, ey = caret.select_x, caret.select_y
 				
@@ -567,19 +659,19 @@ function Editor:Init()
 				if sy == ey then
 					local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
 					local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx, ex)))
-					surface.DrawRect(self.gutter_size + offset, sy * th - th, tw, th)
+					surface.DrawRect(gw + offset + 1, sy * th - th + 1, tw - 2, th - 2)
 				else
 					local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
-					local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx)))
-					surface.DrawRect(self.gutter_size + offset, sy * th - th, tw, th)
+					local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx))) + th / 3
+					surface.DrawRect(gw + offset + 1, sy * th - th + 1, tw - 1, th - 1)
 					
 					for y = sy + 1, ey - 1 do
-						local tw = surface.GetTextSize(getRenderString(lines[y][1]))
-						surface.DrawRect(self.gutter_size, y * th - th, tw, th)
+						local tw = surface.GetTextSize(getRenderString(lines[y][1])) + th / 3
+						surface.DrawRect(gw, y * th - th, tw, th)
 					end
 					
 					local tw = surface.GetTextSize(getRenderString(sub(lines[ey][1], 1, ex)))
-					surface.DrawRect(self.gutter_size, ey * th - th, tw, th)
+					surface.DrawRect(gw, ey * th - th, tw - 1, th - 1)
 				end
 			end
 		end
@@ -619,16 +711,17 @@ function Editor:Init()
 		return true
 	end
 	self.lineholder.PaintOver = function(_, w, h)
-		surface.SetDrawColor(255, 255, 255, 255)
+		surface.SetDrawColor(255, 255, 255, math.Clamp(math.cos((RealTime() - self.caretblink) * math.pi * 1.6) * 255 + 128, 0, 255))
 		
 		local th = settings.font_size
 		for caret_id, caret in ipairs(self.carets) do
-			surface.DrawRect(self.gutter_size + caret.visual_x, caret.y * th - th, 2, th)
+			local offset = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(caret.y), 1, caret.x - 1)))
+			surface.DrawRect(self.gutter_size + offset, caret.y * th - th, 2, th)
 		end
 	end
 	
 	self:SetCursor("beam")
-	self:SetSyntax("lua")
+	self:SetSyntax("text")
 	self:Rebuild()
 	self:AddCaret(1, 1)
 	
@@ -637,6 +730,12 @@ end
 
 function Editor:OnRemove()
 	editors[self] = nil
+end
+
+function Editor:Think()
+	if self.clear_excess_carets then
+		self:ClearExcessCarets()
+	end
 end
 
 function Editor:Paint(w, h)
@@ -698,11 +797,39 @@ function Editor:OnMousePressed(key)
 		if act then
 			act(self, unpack(bind.args or {}))
 			
+			self.last_click = RealTime()
 			return true
 		end
 	end
 	
+	self.last_click = RealTime()
 	return self.ide:OnMousePressed(key)
+end
+
+function Editor:OnMouseReleased(key)
+	local n = {}
+	for _, v in ipairs(self.on_mouse_hold) do
+		if not v[1] == key then
+			n[#n + 1] = v
+		end
+	end
+	self.on_mouse_hold = n
+	
+	local n = {}
+	for _, v in ipairs(self.on_mouse_release) do
+		if not v[1] == key then
+			n[#n + 1] = v
+		else
+			v[2]()
+		end
+	end
+	self.on_mouse_release = n
+end
+
+function Editor:OnCursorMoved(x, y)
+	for _, v in ipairs(self.on_mouse_hold) do
+		v[2](x, y)
+	end
 end
 
 function Editor:OnMouseWheeled(delta)
@@ -727,14 +854,7 @@ function Editor:OnTextChanged()
 	if ignore_chars[str] then return end
 	if #str == 0 then return end
 	
-	local selection = false
-	for _, caret in ipairs(self.carets) do
-		if caret.select_x then
-			selection = true
-			break
-		end
-	end
-	if selection then
+	if self:HasSelection() then
 		self:RemoveSelection()
 	end
 	
@@ -786,6 +906,11 @@ end
 function Editor:PerformLayout()
 	self.lineholder:SetSize(self.lineholder_dock:GetWide(), 99999)
 	self:UpdateScrollbar()
+end
+
+function Editor:RequestCapture(yes)
+	self.mouse_captures = self.mouse_captures + (yes and 1 or -1)
+	self:MouseCapture(self.mouse_captures > 0)
 end
 
 function Editor:UpdateScrollbar()
@@ -931,8 +1056,10 @@ function Editor:Rebuild(line_count, start_line)
 	local h = settings.font_size
 	for _, y in ipairs(self.content_data:RebuildDirty(256)) do
 		local line = {}
+		local offset = 0
 		for i, token in ipairs(self.content_data:GetLineTokens(y)) do
-			local text = getRenderString(token.str)
+			local text = getRenderString(token.str, offset)
+			offset = offset + len(text)
 			local clr = settings.style_data[token.token]
 			local font = "syper_syntax_" .. token.token
 			surface.SetFont(font)
@@ -959,6 +1086,16 @@ function Editor:GetToken(x, y)
 	end
 end
 
+function Editor:HasSelection()
+	for _, caret in ipairs(self.carets) do
+		if caret.select_x then
+			return true
+		end
+	end
+	
+	return false
+end
+
 function Editor:SetSyntax(syntax)
 	self.lexer = Lexer.lexers[syntax]
 	self.mode = Mode.modes[syntax]
@@ -978,8 +1115,96 @@ function Editor:ClearCarets()
 	self.carets = {self.carets[#self.carets]}
 end
 
+function Editor:MarkClearExcessCarets()
+	self.clear_excess_carets = true
+end
+
 function Editor:ClearExcessCarets()
-	-- todo
+	local rem = {}
+	for i, c in ipairs(self.carets) do
+		if not rem[i] then
+			for j, c2 in ipairs(self.carets) do
+				if i ~= j and not rem[j] then
+					if c.x == c2.x and c.y == c2.y then
+						rem[j] = i
+					elseif c.select_x then
+						-- c
+						local sx, sy = c.x, c.y
+						local ex, ey = c.select_x, c.select_y
+						
+						local s = false
+						if ey < sy or (ex < sx and sy == ey) then
+							sx, sy, ex, ey = ex, ey, sx, sy
+							s = true
+						end
+						
+						-- c2
+						local sx2, sy2 = c2.x, c2.y
+						local ex2, ey2 = c2.select_x, c2.select_y
+						
+						if ex2 and (ey2 < sy2 or (ex2 < sx2 and sy2 == ey2)) then
+							sx2, sy2, ex2, ey2 = ex2, ey2, sx2, sy2
+						end
+						
+						if (sx2 > sx and sy2 == sy and (sy ~= ey or sx2 < ex)) or (sx2 < ex and sy2 == ey and sy ~= ey) or (sy2 > sy and sy2 < ey) or
+						   (ex2 and ((ex2 > sx and ey2 == sy and (sy ~= ey or ex2 < ex)) or (ex2 < ey and ey2 == ey and sy ~= ey) or (ey2 > sy and ey2 < ey)))then
+							rem[j] = i
+							
+							if ex2 then
+								if sy2 < sy or (sx2 < sx and sy2 == sy) then
+									if s then
+										c.select_x = sx2
+										c.select_y = sy2
+									else
+										c.x = sx2
+										c.y = sy2
+									end
+								end
+								
+								if ey2 > sy or (ex2 > ex and sy2 == sy) then
+									if s then
+										c.x = ex2
+										c.y = ey2
+									else
+										c.select_x = ex2
+										c.select_y = ey2
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	local link = {}
+	local new = {}
+	for i, c in ipairs(self.carets) do
+		if not rem[i] then
+			new[#new + 1] = c
+			link[i] = #new
+		end
+	end
+	self.carets = new
+	self.clear_excess_carets = false
+	
+	local link2 = {}
+	for k, v in pairs(rem) do
+		link2[k] = link[v]
+	end
+	
+	return link2
+end
+
+function Editor:GetCursorAsCaret()
+	local x, y = self:LocalCursorPos()
+	y = math.min(math.floor((y - self.scrollbar.Scroll) / settings.font_size) + 1, self.content_data:GetLineCount())
+	surface.SetFont("syper_syntax_1")
+	local w = surface.GetTextSize(" ")
+	x = renderToRealPos(self.content_data:GetLineStr(y), math.floor((x - self.gutter_size + w / 2) / w) + 1)
+	
+	return x, y
 end
 
 function Editor:AddCaret(x, y)
@@ -989,14 +1214,21 @@ function Editor:AddCaret(x, y)
 		max_x = x,
 		select_x = nil,
 		select_y = nil,
-		visual_x = 0
+		new = true
 	}
+	
+	self:MarkClearExcessCarets()
 	
 	table.sort(self.carets, function(a, b)
 		return a.y > b.y or (a.y == b.y and a.x > b.x)
 	end)
 	
-	PrintTable(self.carets)
+	for caret_id, caret in ipairs(self.carets) do
+		if caret.new then
+			caret.new = nil
+			return caret_id
+		end
+	end
 end
 
 function Editor:SetCaret(i, x, y)
@@ -1008,7 +1240,9 @@ function Editor:SetCaret(i, x, y)
 	caret.x = x
 	caret.y = y
 	caret.max_x = x
-	caret.visual_x = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(caret.y), 1, caret.x - 1)))
+	
+	self.caretblink = RealTime()
+	self:MarkClearExcessCarets()
 end
 
 function Editor:MoveCaret(i, x, y)
@@ -1060,7 +1294,8 @@ function Editor:MoveCaret(i, x, y)
 		end
 	end
 	
-	caret.visual_x = surface.GetTextSize(getRenderString(sub(lines[caret.y][1], 1, caret.x - 1)))
+	self.caretblink = RealTime()
+	self:MarkClearExcessCarets()
 end
 
 function Editor:InsertStr(str)
@@ -1102,10 +1337,14 @@ function Editor:InsertStrAt(x, y, str, do_history)
 	
 	local length = len(str)
 	for caret_id, caret in ipairs(self.carets) do
-		if caret.y > y or (caret.y == y and caret.x >= x) then
+		if caret.y == y and caret.x >= x then
 			self:MoveCaret(caret_id, length, nil)
+		elseif caret.y > y and line_count > 0 then
+			self:MoveCaret(caret_id, nil, line_count)
 		end
 	end
+	
+	self:MarkClearExcessCarets()
 end
 
 function Editor:RemoveStr(length)
@@ -1120,7 +1359,6 @@ end
 
 function Editor:RemoveSelection()
 	local history = {}
-	-- local cs = self.content_lines
 	local cs = self.content_data.lines
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_x then
@@ -1158,6 +1396,8 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 	local cd = self.content_data
 	local rem = {}
 	local length_org = length
+	local line_count = 0
+	local ex, ey = x, y
 	length = math.abs(length)
 	
 	if length_org < 0 then
@@ -1169,17 +1409,37 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 				else
 					y = y - 1
 					x = cd:GetLineLength(y)
+					line_count = line_count + 1
+				end
+			end
+		end
+	else
+		local c = cd:GetLineCount()
+		for _ = 1, length do
+			ex = ex + 1
+			if ex > cd:GetLineLength(ey) then
+				if ey ~= c then
+					ey = ey + 1
+					ex = 1
+					line_count = line_count + 1
 				end
 			end
 		end
 	end
 	
 	for caret_id, caret in ipairs(self.carets) do
-		local b = (caret.y == y and caret.x > x)
-		if caret.y > y or b then
-			self:MoveCaret(caret_id, b and -math.min(caret.x - x, length) or -length, nil)
+		if (caret.x > x and caret.y == y) or caret.y > y then
+			if caret.y == y then
+				self:MoveCaret(caret_id, -math.min(caret.x - x, length), nil)
+			elseif caret.y <= ey then
+				self:MoveCaret(caret_id, -length, nil)
+			elseif caret.y > ey and line_count > 0 then
+				self:MoveCaret(caret_id, nil, -line_count)
+			end
 		end
 	end
+	
+	self:MarkClearExcessCarets()
 	
 	local i = 0
 	while length > 0 do
@@ -1216,11 +1476,6 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 		self:AddHistory({Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem, length})
 	end
 	
-	-- Update visual caret pos
-	for caret_id, caret in ipairs(self.carets) do
-		self:MoveCaret(caret_id, nil, nil)
-	end
-	
 	return length, x, y, rem
 end
 
@@ -1240,6 +1495,7 @@ function Editor:SetContent(str)
 	self.content_data:AppendToLine(#lines, "\n")
 	
 	self:Rebuild()
+	self:MarkClearExcessCarets()
 end
 
 vgui.Register("SyperEditor", Editor, "Panel")
