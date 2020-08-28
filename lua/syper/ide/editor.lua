@@ -1199,7 +1199,7 @@ end
 
 function Editor:GetCursorAsCaret()
 	local x, y = self:LocalCursorPos()
-	y = math.min(math.floor((y - self.scrollbar.Scroll) / settings.font_size) + 1, self.content_data:GetLineCount())
+	y = math.Clamp(math.floor((y - self.scrollbar.Scroll) / settings.font_size) + 1, 1, self.content_data:GetLineCount())
 	surface.SetFont("syper_syntax_1")
 	local w = surface.GetTextSize(" ")
 	x = renderToRealPos(self.content_data:GetLineStr(y), math.floor((x - self.gutter_size + w / 2) / w) + 1)
