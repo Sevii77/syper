@@ -47,6 +47,22 @@ function Divider:PerformLayout(w, h)
 	self.right:InvalidateLayout()
 end
 
+function Divider:FocusPreviousChild(cur_focus)
+	if cur_focus == nil then
+		return self.right
+	elseif cur_focus == self.right then
+		return self.left
+	end
+end
+
+function Divider:FocusNextChild(cur_focus)
+	if cur_focus == nil then
+		return self.left
+	elseif cur_focus == self.left then
+		return self.right
+	end
+end
+
 function Divider:OnCursorMoved(x, y)
 	if not self.holding then return end
 	
@@ -109,4 +125,4 @@ function Divider:StickRight()
 	self.stick = 2
 end
 
-vgui.Register("SyperHDivider", Divider, "Panel")
+vgui.Register("SyperHDivider", Divider, "SyperBase")

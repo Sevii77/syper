@@ -610,13 +610,8 @@ function Editor:Init()
 	self.last_click = 0
 	self.mouse_captures = 0
 	
-	self.textentry = self:Add("TextEntry")
-	self.textentry:SetSize(0, 0)
-	self.textentry:SetAllowNonAsciiCharacters(true)
-	self.textentry:SetMultiline(true)
-	self.textentry.OnKeyCodeTyped = function(_, key) self:OnKeyCodeTyped(key) end
-	self.textentry.OnTextChanged = function() self:OnTextChanged() end
-	self.textentry.OnLoseFocus = function() self:OnLoseFocus() end
+	self:SetAllowNonAsciiCharacters(true)
+	self:SetMultiline(true)
 	
 	self.scrolltarget = 0
 	self.scrollbar = self:Add("DVScrollBar")
@@ -716,6 +711,8 @@ function Editor:Init()
 		return true
 	end
 	self.lineholder.PaintOver = function(_, w, h)
+		if not self:HasFocus() then return end
+		
 		surface.SetDrawColor(255, 255, 255, math.Clamp(math.cos((RealTime() - self.caretblink) * math.pi * 1.6) * 255 + 128, 0, 255))
 		
 		local th = settings.font_size
@@ -741,6 +738,8 @@ function Editor:Think()
 	if self.clear_excess_carets then
 		self:ClearExcessCarets()
 	end
+	
+	self.key_handled = nil
 end
 
 function Editor:Paint(w, h)
@@ -762,8 +761,11 @@ function Editor:PaintOver(w, h)
 end
 
 function Editor:OnKeyCodeTyped(key)
+	if key == 0 then return end
+	
+	local ctrl = input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL)
 	local bind = Settings.lookupBind(
-		input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL),
+		ctrl,
 		input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT),
 		input.IsKeyDown(KEY_LALT) or input.IsKeyDown(KEY_RALT),
 		key
@@ -778,18 +780,17 @@ function Editor:OnKeyCodeTyped(key)
 		if act then
 			act(self, unpack(bind.args or {}))
 			
-			return true
+			self.key_handled = not ctrl
+			return
 		end
 	end
 	
-	return self.ide:OnKeyCodeTyped(key)
+	if self.ide:OnKeyCodeTyped(key) then
+		self.key_handled = not ctrl
+	end
 end
 
 function Editor:OnMousePressed(key)
-	if key == MOUSE_LEFT then
-		self:RequestFocus()
-	end
-	
 	local bind = Settings.lookupBind(
 		input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL),
 		input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT),
@@ -797,17 +798,20 @@ function Editor:OnMousePressed(key)
 		key
 	)
 	
+	if key == MOUSE_LEFT then
+		self:RequestFocus()
+	end
+	self.last_click = RealTime()
+	
 	if bind then
 		local act = self.Act[bind.act]
 		if act then
 			act(self, unpack(bind.args or {}))
 			
-			self.last_click = RealTime()
 			return true
 		end
 	end
 	
-	self.last_click = RealTime()
 	return self.ide:OnMousePressed(key)
 end
 
@@ -842,12 +846,12 @@ function Editor:OnMouseWheeled(delta)
 end
 
 function Editor:OnTextChanged()
-	local str = self.textentry:GetText()
-	self.textentry:SetText("")
+	local str = self:GetText()
+	self:SetText("")
 	
 	local bracket, bracket2 = nil, nil
 	if not self.is_pasted then
-		if str == "\n" then return end
+		if self.key_handled then return end
 		if settings.auto_closing_bracket then
 			bracket = self.mode.bracket[str]
 			bracket2 = self.mode.bracket2[str]
@@ -898,14 +902,6 @@ function Editor:OnLoseFocus()
 		self:RequestFocus()
 		self.refocus = false
 	end
-end
-
-function Editor:RequestFocus()
-	self.textentry:RequestFocus()
-end
-
-function Editor:OnGetFocus()
-	self:RequestFocus()
 end
 
 function Editor:PerformLayout()
@@ -1204,7 +1200,7 @@ end
 
 function Editor:GetCursorAsCaret()
 	local x, y = self:LocalCursorPos()
-	y = math.Clamp(math.floor((y - self.scrollbar.Scroll) / settings.font_size) + 1, 1, self.content_data:GetLineCount())
+	y = math.Clamp(math.floor((y + self.scrollbar.Scroll) / settings.font_size) + 1, 1, self.content_data:GetLineCount())
 	surface.SetFont("syper_syntax_1")
 	local w = surface.GetTextSize(" ")
 	x = renderToRealPos(self.content_data:GetLineStr(y), math.floor((x - self.gutter_size + w / 2) / w) + 1)
@@ -1503,4 +1499,4 @@ function Editor:SetContent(str)
 	self:MarkClearExcessCarets()
 end
 
-vgui.Register("SyperEditor", Editor, "Panel")
+vgui.Register("SyperEditor", Editor, "SyperBaseTextEntry")

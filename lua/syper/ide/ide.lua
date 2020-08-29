@@ -1,6 +1,8 @@
 do
 	local add = Syper.include
 	
+	add("./base.lua")
+	add("./base_textentry.lua")
 	add("./divider_h.lua")
 	add("./tabhandler.lua")
 	add("./editor.lua")
@@ -16,9 +18,6 @@ function Act.save(self)
 	local panel = vgui.GetKeyboardFocus()
 	if not panel or not IsValid(panel) then return end
 	
-	panel = panel:GetParent()
-	if not panel or not IsValid(panel) then return end
-	
 	if panel:GetName() == "SyperEditor" then
 		if not panel:Save() then
 			print("TODO: poof save panel")
@@ -30,18 +29,19 @@ function Act.command_overlay(self, str)
 	if self.command_overlay then
 		self.command_overlay:Remove()
 		self.command_overlay = nil
-		self.command_verlay_tab:RequestFocus()
+		self.command_overlay_tab:RequestFocus()
 		
 		return
 	end
 	
 	local tab = vgui.GetKeyboardFocus():GetParent()
-	self.command_verlay_tab = tab
+	self.command_overlay_tab = tab
 	local cmd = self:Add("DTextEntry")
 	cmd:SetHeight(30)
 	cmd:Dock(BOTTOM)
 	cmd:SetZPos(100)
 	cmd:SetText(str)
+	cmd:SetCaretPos(#str)
 	cmd:RequestFocus()
 	cmd.OnKeyCodeTyped = function(_, key)
 		if key == KEY_ENTER then
@@ -66,6 +66,25 @@ function Act.command_overlay(self, str)
 	self.command_overlay = cmd
 end
 
+function Act.focus(self, typ, index)
+	local panel = vgui.GetKeyboardFocus()
+	if not panel.SyperBase then return end
+	
+	if typ == "prev" then
+		local panel = vgui.GetKeyboardFocus()
+		if not panel.SyperBase then return end
+		panel:FocusPrevious()
+	elseif typ == "next" then
+		local panel = vgui.GetKeyboardFocus()
+		if not panel.SyperBase then return end
+		panel:FocusNext()
+	elseif typ == "tab" then
+		local th = panel:FindTabHandler()
+		if index < 1 or index > th:GetTabCount() then return end
+		th:SetActive(index)
+	end
+end
+
 ----------------------------------------
 
 local DFrame
@@ -73,7 +92,6 @@ local IDE = {Act = Act}
 
 function IDE:Init()
 	DFrame = DFrame or vgui.GetControlTable("DFrame")
-	
 	-- TODO: make custom, this shit ugly af
 	self.bar = self:Add("DMenuBar")
 	self.bar:Dock(TOP)
@@ -81,6 +99,15 @@ function IDE:Init()
 	-- TODO: make look better
 	self.tabhandler = self:Add("SyperTabHandler")
 	self.tabhandler:Dock(FILL)
+	
+	local file = self.bar:AddMenu("File")
+	file:AddOption("New", function()
+		local editor = self:Add("SyperEditor")
+		editor:SetIDE(self)
+		editor:SetSyntax("lua")
+		editor:SetContent("-- Very empty in here")
+		self.tabhandler:AddTab("untitled", editor, self.tabhandler:GetActive() + 1)
+	end)
 	
 	local config = self.bar:AddMenu("Config")
 	config:AddOption("Keybinds", function()
@@ -102,7 +129,7 @@ function IDE:Init()
 		local div = self:Add("SyperHDivider")
 		div:SetLeft(def)
 		div:SetRight(conf)
-		self:AddTab("Keybinds", div)
+		self.tabhandler:AddTab("Keybinds", div, self.tabhandler:GetActive() + 1)
 		div:CenterDiv()
 	end)
 	config:AddOption("Settings", function()
@@ -124,7 +151,7 @@ function IDE:Init()
 		local div = self:Add("SyperHDivider")
 		div:SetLeft(def)
 		div:SetRight(conf)
-		self:AddTab("Settings", div)
+		self.tabhandler:AddTab("Settings", div, self.tabhandler:GetActive() + 1)
 		div:CenterDiv()
 	end)
 end
@@ -167,14 +194,6 @@ function IDE:OnMousePressed(key)
 	DFrame.OnMousePressed(self, key)
 end
 
-function IDE:AddTab(name, panel)
-	self.tabhandler:AddTab(name, panel, self.tabhandler:GetActive() + 1)
-end
-
-function IDE:GetActiveTab()
-	return self.tabhandler:GetActivePanel().panel
-end
-
 vgui.Register("SyperIDE", IDE, "DFrame")
 
 ----------------------------------------
@@ -187,12 +206,12 @@ function Syper.OpenIDE()
 	-- ide:Center()
 	ide:MakePopup()
 	
-	for i = 1, 50 do
+	for i = 1, 8 do
 		local editor = ide:Add("SyperEditor")
 		editor:SetIDE(ide)
 		editor:SetSyntax("lua")
 		editor:SetContent("-- editor " .. i)
-		ide:AddTab("editor " .. i, editor)
+		ide.tabhandler:AddTab("editor " .. i, editor)
 	end
 end
 

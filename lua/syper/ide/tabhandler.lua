@@ -105,6 +105,32 @@ function TabHandler:PerformLayoutTab(tab, w, h)
 	tab.panel:InvalidateLayout()
 end
 
+function TabHandler:FocusPreviousChild(cur_focus)
+	local allow = cur_focus == nil and true or false
+	for i = #self.tabs, 1, -1 do
+		local tab = self.tabs[i]
+		if tab.panel == cur_focus then
+			allow = true
+		elseif allow then
+			self:SetActivePanel(tab.panel)
+			return tab.panel
+		end
+	end
+end
+
+function TabHandler:FocusNextChild(cur_focus)
+	local allow = cur_focus == nil and true or false
+	for i = 1, #self.tabs do
+		local tab = self.tabs[i]
+		if tab.panel == cur_focus then
+			allow = true
+		elseif allow then
+			self:SetActivePanel(tab.panel)
+			return tab.panel
+		end
+	end
+end
+
 function TabHandler:AddTab(name, panel, index)
 	local tab = self:Add("SyperTab")
 	tab:Setup(self, name, panel)
@@ -150,6 +176,7 @@ function TabHandler:SetActive(index)
 	for i, tab in ipairs(self.tabs) do
 		if i == index then
 			tab.panel:SetVisible(true)
+			tab.panel:RequestFocus()
 			tab.tab:SetActive(true)
 		else
 			tab.panel:SetVisible(false)
@@ -168,6 +195,7 @@ function TabHandler:SetActivePanel(panel)
 	for i, tab in ipairs(self.tabs) do
 		if tab.panel == panel then
 			tab.panel:SetVisible(true)
+			tab.panel:RequestFocus()
 			tab.tab:SetActive(true)
 			self.active_tab = i
 		else
@@ -181,6 +209,10 @@ end
 
 function TabHandler:GetActivePanel()
 	return self.tabs[self.active_tab]
+end
+
+function TabHandler:GetTabCount()
+	return #self.tabs
 end
 
 function TabHandler:SetBarSize(size)

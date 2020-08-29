@@ -167,8 +167,8 @@ function Settings.lookupAct(act)
 		if v.act == act then
 			return {
 				string.find(k, "ctrl+") and true or false,
-				string.find(k, "ctrl+") and true or false,
-				string.find(k, "ctrl+") and true or false,
+				string.find(k, "shift+") and true or false,
+				string.find(k, "alt+") and true or false,
 				Settings.idkey[string.match(k, "[%w_]+$")]
 			}
 		end
@@ -179,7 +179,7 @@ function Settings.loadBinds()
 	Settings.binds = Syper.jsonToTable(include("syper/default_binds.lua"))
 	if not pcall(function()
 		for k, v in pairs(Syper.jsonToTable(file.Read("syper/keybinds.json", "DATA"))) do
-			Settings.binds[k] = v
+			Settings.binds[tostring(k)] = v
 		end
 	end) then
 		ErrorNoHalt("Invalid json in keybinds\n")

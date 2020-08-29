@@ -1,7 +1,22 @@
 return [=[{
+	// IDE stuff
 	"ctrl+s": {"act": "save"},
 	"ctrl+g": {"act": "command_overlay", "args": [":"]},
 	
+	"ctrl+pageup": {"act": "focus", "args": ["prev"]},
+	"ctrl+pagedown": {"act": "focus", "args": ["next"]},
+	"alt+1": {"act": "focus", "args": ["tab", 1]},
+	"alt+2": {"act": "focus", "args": ["tab", 2]},
+	"alt+3": {"act": "focus", "args": ["tab", 3]},
+	"alt+4": {"act": "focus", "args": ["tab", 4]},
+	"alt+5": {"act": "focus", "args": ["tab", 5]},
+	"alt+6": {"act": "focus", "args": ["tab", 6]},
+	"alt+7": {"act": "focus", "args": ["tab", 7]},
+	"alt+8": {"act": "focus", "args": ["tab", 8]},
+	"alt+9": {"act": "focus", "args": ["tab", 9]},
+	"alt+0": {"act": "focus", "args": ["tab", 10]},
+	
+	// Editor
 	"ctrl+z": {"act": "undo"},
 	"ctrl+y": {"act": "redo"},
 	"ctrl+shift+z": {"act": "redo"},
