@@ -1,7 +1,7 @@
 return {
 	indent = {},
 	outdent = {},
-	open = {},
+	pair = {},
 	bracket = {},
 	comment = "",
 }

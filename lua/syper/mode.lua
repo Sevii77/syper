@@ -8,33 +8,80 @@ if CLIENT then
 ----------------------------------------
 
 function Mode.prepareMode(mode)
-	local new = {}
+	-- indent
+	local indent = {}
 	for _, v in ipairs(mode.indent) do
 		local t = {}
-		new[v[1]] = t
+		indent[v[1]] = t
 		
 		for _, m in ipairs(v[2]) do
 			t[m] = true
 		end
 	end
-	mode.indent = new
+	mode.indent = indent
 	
-	local new = {}
+	-- outdent
+	local outdent = {}
 	for _, v in ipairs(mode.outdent) do
 		local t = {}
-		new[v[1]] = t
+		outdent[v[1]] = t
 		
 		for _, m in ipairs(v[2]) do
 			t[m] = true
 		end
 	end
-	mode.outdent = new
+	mode.outdent = outdent
 	
-	local new, new2 = {}, {}
+	-- pair
+	local pair, pair2 = {}, {}
+	for _, v in ipairs(mode.pair) do
+		local c = {}
+		pair[v[1][1]] = {token = v[1][2], close = c, open = {[v[1][1]] = v[1][2]}, pattern = v.pattern}
+		
+		for i = 2, #v do
+			c[v[i][1]] = v[i][2]
+			
+			if not pair2[v[i][1]] then
+				pair2[v[i][1]] = {token = v[i][2], open = {}, close = {[v[i][1]] = v[i][2]}, pattern = v.pattern}
+			end
+			
+			pair2[v[i][1]].open[v[1][1]] = v[1][2]
+		end
+	end
+	
+	for k, v in pairs(pair) do
+		for k2, v2 in pairs(pair) do
+			if k ~= k2 then
+				for k3, v3 in pairs(v.close) do
+					if v2.close[k3] then
+						v.open[k2] = v2.token
+					end
+				end
+			end
+		end
+	end
+	
+	for k, v in pairs(pair2) do
+		for k2, v2 in pairs(pair2) do
+			if k ~= k2 then
+				for k3, v3 in pairs(v.open) do
+					if v2.open[k3] then
+						v.close[k2] = v2.token
+					end
+				end
+			end
+		end
+	end
+	
+	mode.pair = pair
+	mode.pair2 = pair2
+	
+	-- bracket
+	local bracket, bracket2 = {}, {}
 	for k, v in pairs(mode.bracket) do
 		local t, t2 = {}, {}
-		new[k] = {close = v[1], ignore_mode = t, ignore_char = t2}
-		new2[v[1]] = {open = k, ignore_mode = t, ignore_char = t2}
+		bracket[k] = {close = v[1], ignore_mode = t, ignore_char = t2}
+		bracket2[v[1]] = {open = k, ignore_mode = t, ignore_char = t2}
 		
 		for _, m in ipairs(v[2]) do
 			t[m] = true
@@ -46,8 +93,8 @@ function Mode.prepareMode(mode)
 			end
 		end
 	end
-	mode.bracket = new
-	mode.bracket2 = new2
+	mode.bracket = bracket
+	mode.bracket2 = bracket2
 	
 	return mode
 end

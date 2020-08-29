@@ -713,12 +713,84 @@ function Editor:Init()
 	self.lineholder.PaintOver = function(_, w, h)
 		if not self:HasFocus() then return end
 		
+		local lines = self.content_data.lines
+		local th = settings.font_size
+		local gw = self.gutter_size
+		
+		-- carets
 		surface.SetDrawColor(255, 255, 255, math.Clamp(math.cos((RealTime() - self.caretblink) * math.pi * 1.6) * 255 + 128, 0, 255))
 		
-		local th = settings.font_size
 		for caret_id, caret in ipairs(self.carets) do
 			local offset = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(caret.y), 1, caret.x - 1)))
 			surface.DrawRect(self.gutter_size + offset, caret.y * th - th, 2, th)
+		end
+		
+		-- pairs
+		surface.SetDrawColor(255, 255, 255, 255)
+		for caret_id, caret in ipairs(self.carets) do
+			local stoken, x = self:GetToken(caret.x, caret.y)
+			
+			local pair = self.mode.pair[stoken.str]
+			if pair and pair.token == stoken.token then
+				local scope = 1
+				for y = caret.y, #lines do
+					local tokens = self.content_data:GetLineTokens(y)
+					for x = (x and x + 1 or 1), #tokens do
+						local token = tokens[x]
+						if pair.close[token.str] == token.token then
+							scope = scope - 1
+							
+							if scope == 0 then
+								local offset = surface.GetTextSize(getRenderString(sub(lines[caret.y][1], 1, stoken.s - 1)))
+								local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y][1], stoken.s, stoken.e)))
+								surface.DrawRect(gw + offset, caret.y * th - 1, tw, 1)
+								
+								local offset = surface.GetTextSize(getRenderString(sub(lines[y][1], 1, token.s - 1)))
+								local tw = surface.GetTextSize(getRenderString(sub(lines[y][1], token.s, token.e)))
+								surface.DrawRect(gw + offset, y * th - 1, tw, 1)
+								
+								goto BREAK
+							end
+						elseif pair.open[token.str] == token.token then
+							scope = scope + 1
+						end
+					end
+					
+					x = nil
+				end
+			end
+			
+			local pair = self.mode.pair2[stoken.str]
+			if pair and pair.token == stoken.token then
+				local scope = 1
+				for y = caret.y, 1, -1 do
+					local tokens = self.content_data:GetLineTokens(y)
+					for x = (x and x - 1 or #tokens), 1, -1 do
+						local token = tokens[x]
+						if pair.open[token.str] == token.token then
+							scope = scope - 1
+							
+							if scope == 0 then
+								local offset = surface.GetTextSize(getRenderString(sub(lines[caret.y][1], 1, stoken.s - 1)))
+								local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y][1], stoken.s, stoken.e)))
+								surface.DrawRect(gw + offset, caret.y * th - 1, tw, 1)
+								
+								local offset = surface.GetTextSize(getRenderString(sub(lines[y][1], 1, token.s - 1)))
+								local tw = surface.GetTextSize(getRenderString(sub(lines[y][1], token.s, token.e)))
+								surface.DrawRect(gw + offset, y * th - 1, tw, 1)
+								
+								goto BREAK
+							end
+						elseif pair.close[token.str] == token.token then
+							scope = scope + 1
+						end
+					end
+					
+					x = nil
+				end
+			end
+			
+			::BREAK::
 		end
 	end
 	
@@ -1082,7 +1154,7 @@ function Editor:GetToken(x, y)
 	for i = #tokens, 1, -1 do
 		local token = tokens[i]
 		if x >= token.s then
-			return token
+			return token, i
 		end
 	end
 end
@@ -1100,7 +1172,7 @@ end
 function Editor:SetSyntax(syntax)
 	self.lexer = Lexer.lexers[syntax]
 	self.mode = Mode.modes[syntax]
-	self.content_data = Lexer.createContentTable(self.lexer, self.mode)
+	self.content_data = Lexer.createContentTable(self.lexer)
 	self.content_data:ModifyLine(1, "\n")
 end
 

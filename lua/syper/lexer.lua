@@ -226,10 +226,9 @@ function ContentTable:RebuildDirty(max_lines)
 	return changed
 end
 
-function Lexer.createContentTable(lexer, mode)
+function Lexer.createContentTable(lexer)
 	return setmetatable({
 		lexer = lexer,
-		mode = mode,
 		lines = {},
 		dirty = {},
 		len = Syper.Settings.settings.utf8 and utf8.len or string.len,

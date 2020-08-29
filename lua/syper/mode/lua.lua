@@ -21,17 +21,16 @@ return {
 		{"%)", ignore},
 	},
 	
-	open = {
-		["function"] = {"end"},
-		["then"] = {"elseif", "else", "end"},
-		["elseif"] = {"elseif", "else", "end"},
-		["else"] = {"end"},
-		["do"] = {"end"},
-		["repeat"] = {"until"},
-		["{"] = {"}"},
-		["%("] = {"%)"},
-		["%["] = {"%]"},
-		["%[(=*)%["] = {"%]<CAP>%]"},
+	pair = {
+		{{"function", TOKEN.Keyword_Modifier}, {"end", TOKEN.Keyword}},
+		{{"then", TOKEN.Keyword}, {"elseif", TOKEN.Keyword}, {"else", TOKEN.Keyword}, {"end", TOKEN.Keyword}},
+		-- {{"elseif", TOKEN.Keyword}, {"elseif", TOKEN.Keyword}, {"else", TOKEN.Keyword}, {"end", TOKEN.Keyword}},
+		{{"else", TOKEN.Keyword}, {"end", TOKEN.Keyword}},
+		{{"do", TOKEN.Keyword}, {"end", TOKEN.Keyword}},
+		{{"repeat", TOKEN.Keyword}, {"until", TOKEN.Keyword}},
+		{{"{", TOKEN.Punctuation}, {"}", TOKEN.Punctuation}},
+		{{"(", TOKEN.Punctuation}, {")", TOKEN.Punctuation}},
+		{{"[", TOKEN.Punctuation}, {"]", TOKEN.Punctuation}},
 	},
 	
 	bracket = {
