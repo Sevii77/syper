@@ -4,6 +4,7 @@ do
 	add("./base.lua")
 	add("./base_textentry.lua")
 	add("./divider_h.lua")
+	add("./divider_v.lua")
 	add("./tabhandler.lua")
 	add("./editor.lua")
 end
@@ -107,6 +108,44 @@ function IDE:Init()
 		editor:SetSyntax("lua")
 		editor:SetContent("-- Very empty in here")
 		self.tabhandler:AddTab("untitled", editor, self.tabhandler:GetActive() + 1)
+	end)
+	file:AddOption("Test", function()
+		local e1 = self:Add("SyperEditor")
+		e1:SetIDE(self)
+		e1:SetSyntax("lua")
+		e1:SetContent("-- 1")
+		
+		local e2 = self:Add("SyperEditor")
+		e2:SetIDE(self)
+		e2:SetSyntax("lua")
+		e2:SetContent("-- 2")
+		
+		local e3 = self:Add("SyperEditor")
+		e3:SetIDE(self)
+		e3:SetSyntax("lua")
+		e3:SetContent("-- 3")
+		
+		local e4 = self:Add("SyperEditor")
+		e4:SetIDE(self)
+		e4:SetSyntax("lua")
+		e4:SetContent("-- 4")
+		
+		local div1 = self:Add("SyperHDivider")
+		div1:SetLeft(e1)
+		div1:SetRight(e2)
+		
+		local div2 = self:Add("SyperHDivider")
+		div2:SetLeft(e3)
+		div2:SetRight(e4)
+		
+		local div = self:Add("SyperVDivider")
+		div:SetTop(div1)
+		div:SetBottom(div2)
+		
+		self.tabhandler:AddTab("Test", div, self.tabhandler:GetActive() + 1)
+		div:CenterDiv()
+		div1:CenterDiv()
+		div2:CenterDiv()
 	end)
 	
 	local config = self.bar:AddMenu("Config")

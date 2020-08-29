@@ -7,7 +7,7 @@ end
 function Base:OnFocusChanged(gained)
 	if gained then
 		local panel = self.refocus_panel
-		while panel do
+		while IsValid(panel) do
 			local npanel = panel.refocus_panel
 			if not IsValid(npanel) then
 				panel:RequestFocus()
@@ -16,7 +16,11 @@ function Base:OnFocusChanged(gained)
 			panel = npanel
 		end
 	else
-		self:GetParent().refocus_panel = self
+		local parent = self:GetParent()
+		while IsValid(parent) and parent.SyperFocusable do
+			parent.refocus_panel = self
+			parent = parent:GetParent()
+		end
 	end
 end
 
