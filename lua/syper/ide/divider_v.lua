@@ -31,7 +31,7 @@ function Divider:PerformLayout(w, h)
 		if self.stick == 0 then
 			-- nothing, dont move
 		elseif self.stick == 1 then
-			self.div_pos = self.div_pos - div * (self.bottom:GetTall() / self.last_h)
+			self.div_pos = self.div_pos - div * (self.top:GetTall() / self.last_h)
 		elseif self.stick == 2 then
 			self.div_pos = self.div_pos - div
 		end
