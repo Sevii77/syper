@@ -129,14 +129,14 @@ function Act.copy(self)
 				sx, sy, ex, ey = ex, ey, sx, sy
 			end
 			
-			add(sub(lines[sy][1], sx, sy == ey and ex - 1 or -1))
+			add(sub(lines[sy].str, sx, sy == ey and ex - 1 or -1))
 			
 			for y = sy + 1, ey - 1 do
-				add(lines[y][1])
+				add(lines[y].str)
 			end
 			
 			if sy ~= ey then
-				add(sub(lines[ey][1], 1, ex - 1))
+				add(sub(lines[ey].str, 1, ex - 1))
 			end
 			
 			if caret_id > 1 then
@@ -147,7 +147,7 @@ function Act.copy(self)
 	
 	if empty then
 		for caret_id = #self.carets, 1, -1 do
-			add(lines[self.carets[caret_id].y][1])
+			add(lines[self.carets[caret_id].y].str)
 			
 			if caret_id > 1 then
 				add("\n")
@@ -255,14 +255,14 @@ function Act.outdent(self)
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_y and caret.select_y ~= caret.y then
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
-				if string.sub(lines[y][1], 1, tab_strsize) == tab_str then
+				if string.sub(lines[y].str, 1, tab_strsize) == tab_str then
 					self:RemoveStrAt(1, y, tab_strsize, true)
 				end
 			end
 			
 			caret.select_x = caret.select_x - tab_strsize
 		else
-			self:InsertStrAt(caret.x, caret.y, getTabStr(caret.x, lines[caret.y][1]), true)
+			self:InsertStrAt(caret.x, caret.y, getTabStr(caret.x, lines[caret.y].str), true)
 		end
 	end
 	
@@ -282,13 +282,13 @@ function Act.comment(self)
 		
 		local level = math.huge
 		for y = sy, ey do
-			level = math.min(level, string.match(lines[y][1], "%s*()"))
+			level = math.min(level, string.match(lines[y].str, "%s*()"))
 		end
 		
 		local remove = true
 		local cs = #self.mode.comment
 		for y = sy, ey do
-			if string.sub(lines[y][1], level, level + cs - 1) ~= self.mode.comment then
+			if string.sub(lines[y].str, level, level + cs - 1) ~= self.mode.comment then
 				remove = false
 				break
 			end
@@ -321,7 +321,7 @@ function Act.selectall(self)
 	local lines = self.content_data.lines
 	
 	self:ClearCarets()
-	self:SetCaret(1, lines[#lines][2], #lines)
+	self:SetCaret(1, lines[#lines].len, #lines)
 	
 	self.carets[1].select_x = 1
 	self.carets[1].select_y = 1
@@ -426,9 +426,9 @@ function Act.delete(self, typ, count_dir)
 		if count_dir == -1 and settings.auto_closing_bracket then
 			local lines = self.content_data.lines
 			for caret_id, caret in ipairs(self.carets) do
-				if caret.x > 1 and caret.x <= lines[caret.y][2] then
-					local bracket = self.mode.bracket[sub(lines[caret.y][1], caret.x - 1, caret.x - 1)]
-					if bracket and sub(lines[caret.y][1], caret.x, caret.x) == bracket.close then
+				if caret.x > 1 and caret.x <= lines[caret.y].len then
+					local bracket = self.mode.bracket[sub(lines[caret.y].str, caret.x - 1, caret.x - 1)]
+					if bracket and sub(lines[caret.y].str, caret.x, caret.x) == bracket.close then
 						self:RemoveStrAt(caret.x + 1, caret.y, -2, true)
 					else
 						self:RemoveStrAt(caret.x, caret.y, -1, true)
@@ -447,8 +447,8 @@ function Act.delete(self, typ, count_dir)
 		local lines = self.content_data.lines
 		for caret_id, caret in ipairs(self.carets) do
 			if count_dir > 0 then
-				local line = lines[caret.y][1]
-				local ll = lines[caret.y][2]
+				local line = lines[caret.y].str
+				local ll = lines[caret.y].len
 				if caret.x >= ll then
 					if caret.y == #lines then goto SKIP end
 					
@@ -460,7 +460,7 @@ function Act.delete(self, typ, count_dir)
 				local e = select(2, string.find(sub(line, caret.x), "[^%w_]*[%w_]+"))
 				self:RemoveStrAt(caret.x, caret.y, e or (ll + 1 - caret.x), true)
 			else
-				local line = lines[caret.y][1]
+				local line = lines[caret.y].str
 				if caret.x == 1 then
 					if caret.y == 1 then goto SKIP end
 					
@@ -526,8 +526,8 @@ function Act.move(self, typ, count_dir, selc)
 			handleSelect(caret)
 			
 			if count_dir > 0 then
-				local line = lines[caret.y][1]
-				local ll = lines[caret.y][2]
+				local line = lines[caret.y].str
+				local ll = lines[caret.y].len
 				if caret.x >= ll then
 					if caret.y == #lines then goto SKIP end
 					
@@ -539,11 +539,11 @@ function Act.move(self, typ, count_dir, selc)
 				local e = select(2, string.find(sub(line, caret.x), "[^%w_]*[%w_]+"))
 				self:SetCaret(caret_id, e and (e + caret.x) or (ll + 1), nil)
 			else
-				local line = lines[caret.y][1]
+				local line = lines[caret.y].str
 				if caret.x == 1 then
 					if caret.y == 1 then goto SKIP end
 					
-					self:SetCaret(caret_id, lines[caret.y - 1][2] + 1, caret.y - 1)
+					self:SetCaret(caret_id, lines[caret.y - 1].len + 1, caret.y - 1)
 					
 					goto SKIP
 				end
@@ -565,14 +565,14 @@ function Act.move(self, typ, count_dir, selc)
 		elseif typ == "bol" then
 			handleSelect(caret)
 			
-			local e = select(2, string.find(lines[caret.y][1], "^%s*")) + 1
+			local e = select(2, string.find(lines[caret.y].str, "^%s*")) + 1
 			if caret.x ~= e or caret.x ~= 1 then
 				self:SetCaret(caret_id, caret.x == e and 1 or e, nil)
 			end
 		elseif typ == "eol" then
 			handleSelect(caret)
 			
-			self:SetCaret(caret_id, lines[caret.y][2])
+			self:SetCaret(caret_id, lines[caret.y].len)
 		elseif typ == "bof" then
 			handleSelect(caret)
 			
@@ -580,7 +580,7 @@ function Act.move(self, typ, count_dir, selc)
 		elseif typ == "eof" then
 			handleSelect(caret)
 			
-			self:SetCaret(caret_id, lines[#lines][2], #lines)
+			self:SetCaret(caret_id, lines[#lines].len, #lines)
 		end
 	end
 end
@@ -657,20 +657,20 @@ function Editor:Init()
 				ex = ex - 1
 				
 				if sy == ey then
-					local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
-					local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx, ex)))
+					local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
+					local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx, ex)))
 					surface.DrawRect(gw + offset + 1, sy * th - th + 1, tw - 2, th - 2)
 				else
-					local offset = surface.GetTextSize(getRenderString(sub(lines[sy][1], 1, sx - 1)))
-					local tw = surface.GetTextSize(getRenderString(sub(lines[sy][1], sx))) + th / 3
+					local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
+					local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx))) + th / 3
 					surface.DrawRect(gw + offset + 1, sy * th - th + 1, tw - 1, th - 1)
 					
 					for y = sy + 1, ey - 1 do
-						local tw = surface.GetTextSize(getRenderString(lines[y][1])) + th / 3
+						local tw = surface.GetTextSize(getRenderString(lines[y].str)) + th / 3
 						surface.DrawRect(gw, y * th - th, tw, th)
 					end
 					
-					local tw = surface.GetTextSize(getRenderString(sub(lines[ey][1], 1, ex)))
+					local tw = surface.GetTextSize(getRenderString(sub(lines[ey].str, 1, ex)))
 					surface.DrawRect(gw, ey * th - th, tw - 1, th - 1)
 				end
 			end
@@ -692,7 +692,7 @@ function Editor:Init()
 			surface.DrawText(linenum)
 			
 			local offset_x = gw
-			local line = self.content_data.lines[y][6]
+			local line = self.content_data.lines[y].render
 			for i, token in ipairs(line) do
 				if token[5] then
 					surface.SetDrawColor(token[5])
@@ -722,75 +722,30 @@ function Editor:Init()
 		
 		for caret_id, caret in ipairs(self.carets) do
 			local offset = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(caret.y), 1, caret.x - 1)))
-			surface.DrawRect(self.gutter_size + offset, caret.y * th - th, 2, th)
+			surface.DrawRect(gw + offset, caret.y * th - th, 2, th)
 		end
 		
 		-- pairs
 		surface.SetDrawColor(255, 255, 255, 255)
 		for caret_id, caret in ipairs(self.carets) do
-			local stoken, x = self:GetToken(caret.x, caret.y)
+			local token, x = self:GetToken(caret.x, caret.y)
 			
-			local pair = self.mode.pair[stoken.str]
-			if pair and pair.token == stoken.token then
-				local scope = 1
-				for y = caret.y, #lines do
-					local tokens = self.content_data:GetLineTokens(y)
-					for x = (x and x + 1 or 1), #tokens do
-						local token = tokens[x]
-						if pair.close[token.str] == token.token then
-							scope = scope - 1
-							
-							if scope == 0 then
-								local offset = surface.GetTextSize(getRenderString(sub(lines[caret.y][1], 1, stoken.s - 1)))
-								local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y][1], stoken.s, stoken.e)))
-								surface.DrawRect(gw + offset, caret.y * th - 1, tw, 1)
-								
-								local offset = surface.GetTextSize(getRenderString(sub(lines[y][1], 1, token.s - 1)))
-								local tw = surface.GetTextSize(getRenderString(sub(lines[y][1], token.s, token.e)))
-								surface.DrawRect(gw + offset, y * th - 1, tw, 1)
-								
-								goto BREAK
-							end
-						elseif pair.open[token.str] == token.token then
-							scope = scope + 1
-						end
-					end
-					
-					x = nil
-				end
+			if not token.pair then
+				token, x = self:GetToken(caret.x - 1, caret.y)
 			end
 			
-			local pair = self.mode.pair2[stoken.str]
-			if pair and pair.token == stoken.token then
-				local scope = 1
-				for y = caret.y, 1, -1 do
-					local tokens = self.content_data:GetLineTokens(y)
-					for x = (x and x - 1 or #tokens), 1, -1 do
-						local token = tokens[x]
-						if pair.open[token.str] == token.token then
-							scope = scope - 1
-							
-							if scope == 0 then
-								local offset = surface.GetTextSize(getRenderString(sub(lines[caret.y][1], 1, stoken.s - 1)))
-								local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y][1], stoken.s, stoken.e)))
-								surface.DrawRect(gw + offset, caret.y * th - 1, tw, 1)
-								
-								local offset = surface.GetTextSize(getRenderString(sub(lines[y][1], 1, token.s - 1)))
-								local tw = surface.GetTextSize(getRenderString(sub(lines[y][1], token.s, token.e)))
-								surface.DrawRect(gw + offset, y * th - 1, tw, 1)
-								
-								goto BREAK
-							end
-						elseif pair.close[token.str] == token.token then
-							scope = scope + 1
-						end
-					end
-					
-					x = nil
-				end
+			if token and token.pair then
+				local x, y = token.pair.x, token.pair.y
+				
+				local offset = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, 1, token.s - 1)))
+				local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, token.s, token.e)))
+				surface.DrawRect(gw + offset, caret.y * th - 1, tw, 1)
+				
+				local token = lines[y].tokens[x]
+				local offset = surface.GetTextSize(getRenderString(sub(lines[y].str, 1, token.s - 1)))
+				local tw = surface.GetTextSize(getRenderString(sub(lines[y].str, token.s, token.e)))
+				surface.DrawRect(gw + offset, y * th - 1, tw, 1)
 			end
-			
-			::BREAK::
 		end
 	end
 	
@@ -1127,26 +1082,26 @@ function Editor:Rebuild(line_count, start_line)
 	local t = SysTime()
 	
 	local h = settings.font_size
-	for _, y in ipairs(self.content_data:RebuildDirty(256)) do
+	for y, _ in pairs(table.Merge(self.content_data:RebuildDirty(256), self.content_data:RebuildTokenPairs())) do
 		local line = {}
 		local offset = 0
 		for i, token in ipairs(self.content_data:GetLineTokens(y)) do
 			local text = getRenderString(token.str, offset)
 			offset = offset + len(text)
-			local clr = settings.style_data[token.token]
-			local font = "syper_syntax_" .. token.token
+			local clr = settings.style_data[token.token_override or token.token]
+			local font = "syper_syntax_" .. (token.token_override or token.token)
 			surface.SetFont(font)
 			local w = surface.GetTextSize(text)
 			line[i] = {w, text, font, clr.f, clr.b}
 		end
 		
-		self.content_data.lines[y][6] = line
+		self.content_data.lines[y].render = line
 	end
 	
 	self:UpdateScrollbar()
 	self:UpdateGutter()
 	
-	print("rebuild", SysTime() - t)
+	print("rebuild total", SysTime() - t)
 end
 
 function Editor:GetToken(x, y)
@@ -1172,7 +1127,7 @@ end
 function Editor:SetSyntax(syntax)
 	self.lexer = Lexer.lexers[syntax]
 	self.mode = Mode.modes[syntax]
-	self.content_data = Lexer.createContentTable(self.lexer)
+	self.content_data = Lexer.createContentTable(self.lexer, self.mode)
 	self.content_data:ModifyLine(1, "\n")
 end
 
@@ -1326,7 +1281,7 @@ function Editor:MoveCaret(i, x, y)
 		local xn = x / math.abs(x)
 		for _ = xn, x, xn do
 			if x > 0 then
-				local ll = lines[caret.y][2]
+				local ll = lines[caret.y].len
 				if caret.x < ll or caret.y < #lines then
 					caret.x = caret.x + 1
 					if caret.x > ll then
@@ -1340,7 +1295,7 @@ function Editor:MoveCaret(i, x, y)
 					caret.x = caret.x - 1
 					if caret.x < 1 then
 						caret.y = caret.y - 1
-						caret.x = lines[caret.y][2]
+						caret.x = lines[caret.y].len
 					end
 					caret.max_x = caret.x
 				end
@@ -1353,13 +1308,13 @@ function Editor:MoveCaret(i, x, y)
 		for _ = yn, y, yn do
 			if y > 0 then
 				if caret.y < #lines then
-					caret.x = renderToRealPos(lines[caret.y + 1][1], realToRenderPos(lines[caret.y][1], caret.x))
+					caret.x = renderToRealPos(lines[caret.y + 1].str, realToRenderPos(lines[caret.y].str, caret.x))
 					caret.y = caret.y + 1
 					
 					if caret.y == #lines then break end
 				end
 			elseif caret.y > 1 then
-				caret.x = renderToRealPos(lines[caret.y - 1][1], realToRenderPos(lines[caret.y][1], caret.x))
+				caret.x = renderToRealPos(lines[caret.y - 1].str, realToRenderPos(lines[caret.y].str, caret.x))
 				caret.y = caret.y - 1
 				
 				if caret.y == 1 then break end
@@ -1442,9 +1397,9 @@ function Editor:RemoveSelection()
 				sx, sy, ex, ey = ex, ey, sx, sy
 			end
 			
-			local length = sy == ey and ex - sx or cs[sy][2] - sx + 1
+			local length = sy == ey and ex - sx or cs[sy].len - sx + 1
 			for y = sy + 1, ey - 1 do
-				length = length + cs[y][2]
+				length = length + cs[y].len
 			end
 			if sy ~= ey then
 				length = length + ex - 1

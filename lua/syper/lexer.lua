@@ -3,6 +3,7 @@ Syper.Lexer = {
 }
 
 local Lexer = Syper.Lexer
+local TOKEN = Syper.TOKEN
 if CLIENT then
 
 ----------------------------------------
@@ -63,11 +64,13 @@ ContentTable.__index = ContentTable
 
 function ContentTable:InsertLine(y, str)
 	table.insert(self.lines, y, {
-		str,
-		self.len(str),
-		{},
-		nil, nil,
-		nil
+		str = str,
+		len = self.len(str),
+		tokens = {},
+		mode = nil,
+		mode_repl = nil,
+		render = nil,
+		pair = {}
 	})
 	
 	local dirty = {}
@@ -94,57 +97,60 @@ end
 function ContentTable:ModifyLine(y, str)
 	if not self.lines[y] then
 		self.lines[y] = {
-			str,
-			self.len(str),
-			{},
-			nil, nil
+			str = str,
+			len = self.len(str),
+			tokens = {},
+			mode = nil,
+			mode_repl = nil,
+			render = nil,
+			-- pair = {}
 		}
 	else
-		self.lines[y][1] = str
-		self.lines[y][2] = self.len(str)
+		self.lines[y].str = str
+		self.lines[y].len = self.len(str)
 	end
 	
 	self.dirty[y] = true
 end
 
 function ContentTable:InsertIntoLine(y, str, x)
-	local str = self.sub(self.lines[y][1], 1, x - 1) .. str .. self.sub(self.lines[y][1], x)
-	self.lines[y][1] = str
-	self.lines[y][2] = self.len(str)
+	local str = self.sub(self.lines[y].str, 1, x - 1) .. str .. self.sub(self.lines[y].str, x)
+	self.lines[y].str = str
+	self.lines[y].len = self.len(str)
 	self.dirty[y] = true
 end
 
 function ContentTable:AppendToLine(y, str)
-	local str = self.lines[y][1] .. str
-	self.lines[y][1] = str
-	self.lines[y][2] = self.len(str)
+	local str = self.lines[y].str .. str
+	self.lines[y].str = str
+	self.lines[y].len = self.len(str)
 	self.dirty[y] = true
 end
 
 function ContentTable:PrependToLine(y, str)
-	local str = str .. self.lines[y][1]
-	self.lines[y][1] = str
-	self.lines[y][2] = self.len(str)
+	local str = str .. self.lines[y].str
+	self.lines[y].str = str
+	self.lines[y].len = self.len(str)
 	self.dirty[y] = true
 end
 
 function ContentTable:RemoveFromLine(y, len, x)
-	local str = self.sub(self.lines[y][1], 1, x - 1) .. self.sub(self.lines[y][1], x + len)
-	self.lines[y][1] = str
-	self.lines[y][2] = self.len(str)
+	local str = self.sub(self.lines[y].str, 1, x - 1) .. self.sub(self.lines[y].str, x + len)
+	self.lines[y].str = str
+	self.lines[y].len = self.len(str)
 	self.dirty[y] = true
 end
 
 function ContentTable:GetLineStr(y)
-	return self.lines[y][1]
+	return self.lines[y].str
 end
 
 function ContentTable:GetLineLength(y)
-	return self.lines[y][2]
+	return self.lines[y].len
 end
 
 function ContentTable:GetLineTokens(y)
-	return self.lines[y][3]
+	return self.lines[y].tokens
 end
 
 function ContentTable:GetLineCount()
@@ -158,26 +164,26 @@ end
 function ContentTable:RebuildLine(y)
 	local lexer = self.lexer
 	local line = self.lines[y]
-	print("rebuild line " .. y)
+	-- print("rebuild line " .. y)
 	
 	local curbyte = 1
 	local mode, mode_repl
 	
 	if y > 1 then
 		local prev = self.lines[y - 1]
-		local tok = prev[3][#prev[3]]
+		local tok = prev.tokens[#prev.tokens]
 		mode = tok.mode
 		mode_repl = tok.mode_repl
 	else
 		mode = "main"
 	end
 	
-	line[3] = {}
-	line[4] = mode
-	line[5] = mode_repl
+	line.tokens = {}
+	line.mode = mode
+	line.mode_repl = mode_repl
 	
 	while true do
-		local fdata = find(line[1], curbyte, lexer[mode], mode_repl)
+		local fdata = find(line.str, curbyte, lexer[mode], mode_repl)
 		if not fdata then break end
 		
 		if fdata.mode then
@@ -185,7 +191,7 @@ function ContentTable:RebuildLine(y)
 			mode_repl = fdata.cap
 		end
 		
-		line[3][#line[3] + 1] = {token = fdata.token, str = fdata.str, mode = mode, mode_repl = mode_repl, s = fdata.s, e = fdata.e}
+		line.tokens[#line.tokens + 1] = {token = fdata.token, str = fdata.str, mode = mode, mode_repl = mode_repl, s = fdata.s, e = fdata.e}
 		curbyte = fdata.e + 1
 		
 		if fdata.str[#fdata.str] == "\n" then break end
@@ -198,13 +204,15 @@ function ContentTable:RebuildLines(y, c)
 	for y = y, y + c do
 		local mode = self:RebuildLine(y)
 		local next_line = self.lines[y + 1]
-		if not next_line or next_line[4] == mode then return y end
+		if not next_line or next_line.mode == mode then return y end
 	end
 	
 	return y + c
 end
 
 function ContentTable:RebuildDirty(max_lines)
+	local t = SysTime()
+	
 	local dirty = {}
 	for y, _ in pairs(self.dirty) do
 		dirty[#dirty + 1] = y
@@ -218,17 +226,82 @@ function ContentTable:RebuildDirty(max_lines)
 		if self.dirty[y] then
 			for y = y, self:RebuildLines(y, max_lines) do
 				self.dirty[y] = nil
-				changed[#changed + 1] = y
+				-- changed[#changed + 1] = y
+				changed[y] = true
 			end
 		end
 	end
 	
+	print("rebuild dirty", SysTime() - t)
+	
 	return changed
 end
 
-function Lexer.createContentTable(lexer)
+-- TODO: dont rebuild everything every time
+-- after checking performance, its fine for now
+function ContentTable:RebuildTokenPairs()
+	local t = SysTime()
+	
+	local changed = {}
+	local scopes = {}
+	for k, _ in pairs(self.mode.pair) do
+		scopes[k] = {}
+	end
+	
+	for y, line in ipairs(self.lines) do
+		for x, token in ipairs(line.tokens) do
+			token.pair = nil
+			local token_override = nil
+			
+			local pair = self.mode.pair2[token.str]
+			if pair and pair.token == token.token then
+				local pos
+				for _, k in ipairs(pair.open) do
+					pos = scopes[k][#scopes[k]]
+					scopes[k][#scopes[k]] = nil
+				end
+				
+				if pos then
+					self.lines[pos.y].tokens[pos.x].pair = {x = x, y = y}
+					token.pair = pos
+				else
+					-- mark token error
+					token_override = TOKEN.Error
+				end
+			end
+			
+			local pair = self.mode.pair[token.str]
+			if pair and pair.token == token.token then
+				for _, k in ipairs(pair.open) do
+					scopes[k][#scopes[k] + 1] = {x = x, y = y}
+				end
+			end
+			
+			if token.token_override ~= token_override then
+				changed[y] = true
+			end
+			
+			token.token_override = token_override
+		end
+	end
+	
+	-- mark all unfinished error
+	for _, v in pairs(scopes) do
+		for _, pos in ipairs(v) do
+			self.lines[pos.y].tokens[pos.x].token_override = TOKEN.Error
+			changed[pos.y] = true
+		end
+	end
+	
+	print("rebuild token pairs", SysTime() - t)
+	
+	return changed
+end
+
+function Lexer.createContentTable(lexer, mode)
 	return setmetatable({
 		lexer = lexer,
+		mode = mode,
 		lines = {},
 		dirty = {},
 		len = Syper.Settings.settings.utf8 and utf8.len or string.len,

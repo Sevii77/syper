@@ -13,8 +13,27 @@ return {
 	},
 	
 	pair = {
-		["{"] = {"}"},
-		["%["] = {"%]"},
+		["{"] = {
+			token = TOKEN.Punctuation,
+			open = {"{"}
+		},
+		
+		["["] = {
+			token = TOKEN.Punctuation,
+			open = {"["}
+		},
+	},
+	
+	pair2 = {
+		["}"] = {
+			token = TOKEN.Punctuation,
+			open = {"{"}
+		},
+		
+		["]"] = {
+			token = TOKEN.Punctuation,
+			open = {"["}
+		},
 	},
 	
 	bracket = {
