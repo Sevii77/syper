@@ -203,6 +203,11 @@ function Settings.rebuildStyle()
 			italic = Settings.settings.style_data[i].i
 		})
 	end
+	
+	surface.CreateFont("syper_syntax_fold", {
+		font = Settings.settings.font,
+		size = Settings.settings.font_size - 4
+	})
 end
 
 function Settings.lookupSetting(name)

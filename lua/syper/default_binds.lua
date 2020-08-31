@@ -70,5 +70,16 @@ return [=[{
 	"ctrl+home": {"act": "move", "args": ["bof"]},
 	"ctrl+end": {"act": "move", "args": ["eof"]},
 	"ctrl+shift+home": {"act": "move", "args": ["bof", false, true]},
-	"ctrl+shift+end": {"act": "move", "args": ["eof", false, true]}
+	"ctrl+shift+end": {"act": "move", "args": ["eof", false, true]},
+	
+	"ctrl+shift+1": {"act": "fold_level", "args": [1]},
+	"ctrl+shift+2": {"act": "fold_level", "args": [2]},
+	"ctrl+shift+3": {"act": "fold_level", "args": [3]},
+	"ctrl+shift+4": {"act": "fold_level", "args": [4]},
+	"ctrl+shift+5": {"act": "fold_level", "args": [5]},
+	"ctrl+shift+6": {"act": "fold_level", "args": [6]},
+	"ctrl+shift+7": {"act": "fold_level", "args": [7]},
+	"ctrl+shift+8": {"act": "fold_level", "args": [8]},
+	"ctrl+shift+9": {"act": "fold_level", "args": [9]},
+	"ctrl+shift+0": {"act": "unfold_all"}
 }]=]

@@ -325,10 +325,6 @@ function Act.selectall(self)
 	
 	self.carets[1].select_x = 1
 	self.carets[1].select_y = 1
-	
-	for _, l in ipairs(lines) do
-		print(l[2], l[1])
-	end
 end
 
 local lx, ly, stage, last_id
@@ -590,6 +586,24 @@ function Act.goto_line(self, line)
 	self:SetCaret(1, 1, math.Clamp(settings.gutter_relative and (self.carets[1].y + line) or line, 1, self.content_data:GetLineCount()))
 end
 
+function Act.fold_level(self, level)
+	local cd = self.content_data
+	for y, line in ipairs(cd.lines) do
+		if line.foldable and line.scope_level == level and not line.folded then
+			cd:FoldLine(y)
+		end
+	end
+end
+
+function Act.unfold_all(self)
+	local cd = self.content_data
+	for y, line in ipairs(cd.lines) do
+		if line.folded then
+			cd:UnfoldLine(y)
+		end
+	end
+end
+
 ----------------------------------------
 
 local Editor = {Act = Act}
@@ -657,21 +671,33 @@ function Editor:Init()
 				ex = ex - 1
 				
 				if sy == ey then
-					local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-					local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx, ex)))
-					surface.DrawRect(gw + offset + 1, sy * th - th + 1, tw - 2, th - 2)
+					local ry = self:GetVisualLineY(sy)
+					if ry then
+						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
+						local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx, ex)))
+						surface.DrawRect(gw + offset + 1, ry * th - th + 1, tw - 2, th - 2)
+					end
 				else
-					local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-					local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx))) + th / 3
-					surface.DrawRect(gw + offset + 1, sy * th - th + 1, tw - 1, th - 1)
-					
-					for y = sy + 1, ey - 1 do
-						local tw = surface.GetTextSize(getRenderString(lines[y].str)) + th / 3
-						surface.DrawRect(gw, y * th - th, tw, th)
+					local ry = self:GetVisualLineY(sy)
+					if ry then
+						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
+						local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx))) + th / 3
+						surface.DrawRect(gw + offset + 1, ry * th - th + 1, tw - 1, th - 1)
 					end
 					
-					local tw = surface.GetTextSize(getRenderString(sub(lines[ey].str, 1, ex)))
-					surface.DrawRect(gw, ey * th - th, tw - 1, th - 1)
+					for y = sy + 1, ey - 1 do
+						local ry = self:GetVisualLineY(y)
+						if ry then
+							local tw = surface.GetTextSize(getRenderString(lines[y].str)) + th / 3
+							surface.DrawRect(gw, ry * th - th, tw, th)
+						end
+					end
+					
+					local ry = self:GetVisualLineY(ey)
+					if ry then
+						local tw = surface.GetTextSize(getRenderString(sub(lines[ey].str, 1, ex)))
+						surface.DrawRect(gw, ry * th - th, tw - 1, th - 1)
+					end
 				end
 			end
 		end
@@ -681,30 +707,64 @@ function Editor:Init()
 		surface.DrawRect(0, 0, gw, h)
 		
 		local y = self:FirstVisibleLine()
-		for y = y, math.min(self.content_data:GetLineCount(), y + self:VisibleLineCount()) do
-			local offset_y = y * th - th
-			
-			local linenum = tostring(settings.gutter_relative and y - self.carets[1].y or y)
-			surface.SetTextColor(settings.style_data.gutter_foreground)
-			surface.SetFont("syper_syntax_1")
-			local tw = surface.GetTextSize(linenum)
-			surface.SetTextPos(gw - tw - settings.gutter_margin, offset_y)
-			surface.DrawText(linenum)
-			
-			local offset_x = gw
-			local line = self.content_data.lines[y].render
-			for i, token in ipairs(line) do
-				if token[5] then
-					surface.SetDrawColor(token[5])
-					surface.DrawRect(offset_x, offset_y, i == #line and 9999 or token[1], th)
+		local ye = y + self:VisibleLineCount()
+		for ry = self:FirstVisibleLineRender(), self.content_data:GetLineCount() do
+			local line = self.content_data.lines[ry]
+			if not line.fold then
+				local offset_y = y * th - th
+				
+				local linenum = tostring(settings.gutter_relative and ry - self.carets[1].y or ry)
+				surface.SetTextColor(settings.style_data.gutter_foreground)
+				surface.SetFont("syper_syntax_1")
+				local tw = surface.GetTextSize(linenum)
+				surface.SetTextPos(gw - tw - settings.gutter_margin, offset_y)
+				surface.DrawText(linenum)
+				
+				if line.foldable then
+					local str = line.folded and "+" or "-"
+					local tw = surface.GetTextSize(str)
+					surface.SetTextPos(gw - tw - 2, offset_y - 1)
+					surface.DrawText(str)
 				end
 				
-				surface.SetTextColor(token[4])
-				surface.SetFont(token[3])
-				surface.SetTextPos(offset_x, offset_y)
-				surface.DrawText(token[2])
+				local offset_x = gw
+				local render = line.render
+				for i, token in ipairs(render) do
+					if token[5] then
+						surface.SetDrawColor(token[5])
+						surface.DrawRect(offset_x, offset_y, i == #render and 9999 or token[1], th)
+					end
+					
+					surface.SetTextColor(token[4])
+					surface.SetFont(token[3])
+					surface.SetTextPos(offset_x, offset_y)
+					surface.DrawText(token[2])
+					
+					offset_x = offset_x + token[1]
+				end
 				
-				offset_x = offset_x + token[1]
+				if line.folded then
+					local fold_count = 0
+					for y = ry + 1, self.content_data:GetLineCount() do
+						if not self.content_data.lines[y].fold then break end
+						
+						fold_count = fold_count + 1
+					end
+					
+					local fold_text = string.format(settings.fold_format, fold_count)
+					surface.SetFont("syper_syntax_fold")
+					local tw = surface.GetTextSize(fold_text)
+					
+					surface.SetDrawColor(settings.style_data.fold_background)
+					surface.DrawRect(offset_x + 4, offset_y + 3, tw, th - 5)
+					
+					surface.SetTextColor(settings.style_data.fold_foreground)
+					surface.SetTextPos(offset_x + 4, offset_y + 3)
+					surface.DrawText(fold_text)
+				end
+				
+				y = y + 1
+				if y == ye then break end
 			end
 		end
 		
@@ -721,30 +781,46 @@ function Editor:Init()
 		surface.SetDrawColor(255, 255, 255, math.Clamp(math.cos((RealTime() - self.caretblink) * math.pi * 1.6) * 255 + 128, 0, 255))
 		
 		for caret_id, caret in ipairs(self.carets) do
-			local offset = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(caret.y), 1, caret.x - 1)))
-			surface.DrawRect(gw + offset, caret.y * th - th, 2, th)
+			local x = caret.x
+			local y = caret.y
+			local vy = self:GetVisualLineY(y)
+			if not vy then
+				for y2 = y - 1, 1, -1 do
+					if not lines[y2].fold then
+						x = lines[y2].len
+						y = y2
+						vy = self:GetVisualLineY(y)
+						
+						break
+					end
+				end
+			end
+			
+			local offset = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1)))
+			surface.DrawRect(gw + offset, vy * th - th, 2, th)
 		end
 		
 		-- pairs
 		surface.SetDrawColor(255, 255, 255, 255)
 		for caret_id, caret in ipairs(self.carets) do
-			local token, x = self:GetToken(caret.x, caret.y)
-			
-			if not token.pair then
-				token, x = self:GetToken(caret.x - 1, caret.y)
-			end
-			
-			if token and token.pair then
-				local x, y = token.pair.x, token.pair.y
+			if self:GetVisualLineY(caret.y) then
+				local token, x = self:GetToken(caret.x, caret.y)
+				if not token or not token.pair then
+					token, x = self:GetToken(caret.x - 1, caret.y)
+				end
 				
-				local offset = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, 1, token.s - 1)))
-				local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, token.s, token.e)))
-				surface.DrawRect(gw + offset, caret.y * th - 1, tw, 1)
-				
-				local token = lines[y].tokens[x]
-				local offset = surface.GetTextSize(getRenderString(sub(lines[y].str, 1, token.s - 1)))
-				local tw = surface.GetTextSize(getRenderString(sub(lines[y].str, token.s, token.e)))
-				surface.DrawRect(gw + offset, y * th - 1, tw, 1)
+				if token and token.pair then
+					local x, y = token.pair.x, token.pair.y
+					
+					local offset = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, 1, token.s - 1)))
+					local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, token.s, token.e)))
+					surface.DrawRect(gw + offset, self:GetVisualLineY(caret.y) * th - 1, tw, 1)
+					
+					local token = lines[y].tokens[x]
+					local offset = surface.GetTextSize(getRenderString(sub(lines[y].str, 1, token.s - 1)))
+					local tw = surface.GetTextSize(getRenderString(sub(lines[y].str, token.s, token.e)))
+					surface.DrawRect(gw + offset, self:GetVisualLineY(y) * th - 1, tw, 1)
+				end
 			end
 		end
 	end
@@ -790,9 +866,8 @@ end
 function Editor:OnKeyCodeTyped(key)
 	if key == 0 then return end
 	
-	local ctrl = input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL)
 	local bind = Settings.lookupBind(
-		ctrl,
+		input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL),
 		input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT),
 		input.IsKeyDown(KEY_LALT) or input.IsKeyDown(KEY_RALT),
 		key
@@ -807,13 +882,13 @@ function Editor:OnKeyCodeTyped(key)
 		if act then
 			act(self, unpack(bind.args or {}))
 			
-			self.key_handled = not ctrl
+			self.key_handled = true
 			return
 		end
 	end
 	
 	if self.ide:OnKeyCodeTyped(key) then
-		self.key_handled = not ctrl
+		self.key_handled = true
 	end
 end
 
@@ -825,10 +900,26 @@ function Editor:OnMousePressed(key)
 		key
 	)
 	
+	self.last_click = RealTime()
 	if key == MOUSE_LEFT then
 		self:RequestFocus()
+		
+		if self:LocalCursorPos() <= self.gutter_size then
+			local y = self:GetCursorAsY()
+			local line = self.content_data.lines[y]
+			if line.foldable then
+				if line.folded then
+					self.content_data:UnfoldLine(y)
+				else
+					self.content_data:FoldLine(y)
+				end
+				
+				self:UpdateScrollbar()
+			end
+			
+			return
+		end
 	end
-	self.last_click = RealTime()
 	
 	if bind then
 		local act = self.Act[bind.act]
@@ -943,7 +1034,7 @@ end
 
 function Editor:UpdateScrollbar()
 	local s = self.lineholder_dock:GetTall()
-	self.scrollbar:SetUp(s, s + settings.font_size * (#self.content_data.lines - 1) + 1)
+	self.scrollbar:SetUp(s, s + settings.font_size * (self.content_data:GetUnfoldedLineCount() - 1) + 1)
 end
 
 function Editor:UpdateGutter()
@@ -976,6 +1067,28 @@ end
 
 function Editor:FirstVisibleLine()
 	return math.floor(-select(2, self.lineholder:GetPos()) / settings.font_size) + 1
+end
+
+function Editor:FirstVisibleLineRender()
+	local lines = self.content_data.lines
+	local y = 0
+	local m = math.floor(-select(2, self.lineholder:GetPos()) / settings.font_size) + 1
+	for ry = 1, #lines do
+		if not lines[ry].fold then
+			y = y + 1
+		end
+		
+		if y == m then return ry end
+	end
+	return #lines
+end
+
+function Editor:GetVisualLineY(y)
+	return self.content_data.lines[y].visual_y
+end
+
+function Editor:GetRealLineY(y)
+	return self.content_data.visual_lines[y]
 end
 
 function Editor:PushHistoryBlock()
@@ -1227,12 +1340,16 @@ end
 
 function Editor:GetCursorAsCaret()
 	local x, y = self:LocalCursorPos()
-	y = math.Clamp(math.floor((y + self.scrollbar.Scroll) / settings.font_size) + 1, 1, self.content_data:GetLineCount())
+	y = math.Clamp(self:GetRealLineY(math.floor((y + self.scrollbar.Scroll) / settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
 	surface.SetFont("syper_syntax_1")
 	local w = surface.GetTextSize(" ")
 	x = renderToRealPos(self.content_data:GetLineStr(y), math.floor((x - self.gutter_size + w / 2) / w) + 1)
 	
 	return x, y
+end
+
+function Editor:GetCursorAsY()
+	return math.Clamp(self:GetRealLineY(math.floor((select(2, self:LocalCursorPos()) + self.scrollbar.Scroll) / settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
 end
 
 function Editor:AddCaret(x, y)
@@ -1265,6 +1382,30 @@ function Editor:SetCaret(i, x, y)
 	x = x or caret.x
 	y = y or caret.y
 	
+	if not self:GetVisualLineY(y) then
+		local lines = self.content_data.lines
+		local b = y < caret.y or (y == caret.y and x < caret.x)
+		if b then
+			for y2 = y - 1, 1, -1 do
+				if not lines[y2].fold then
+					x = lines[y2].len
+					y = y2
+					
+					break
+				end
+			end
+		else
+			for y2 = y + 1, #lines do
+				if not lines[y2].fold then
+					x = 1
+					y = y2
+					
+					break
+				end
+			end
+		end
+	end
+	
 	caret.x = x
 	caret.y = y
 	caret.max_x = x
@@ -1287,6 +1428,9 @@ function Editor:MoveCaret(i, x, y)
 					if caret.x > ll then
 						caret.x = 1
 						caret.y = caret.y + 1
+						while not self:GetVisualLineY(caret.y) do
+							caret.y = caret.y + 1
+						end
 					end
 					caret.max_x = caret.x
 				end
@@ -1295,6 +1439,9 @@ function Editor:MoveCaret(i, x, y)
 					caret.x = caret.x - 1
 					if caret.x < 1 then
 						caret.y = caret.y - 1
+						while not self:GetVisualLineY(caret.y) do
+							caret.y = caret.y - 1
+						end
 						caret.x = lines[caret.y].len
 					end
 					caret.max_x = caret.x
@@ -1308,14 +1455,22 @@ function Editor:MoveCaret(i, x, y)
 		for _ = yn, y, yn do
 			if y > 0 then
 				if caret.y < #lines then
-					caret.x = renderToRealPos(lines[caret.y + 1].str, realToRenderPos(lines[caret.y].str, caret.x))
+					local cy = caret.y
 					caret.y = caret.y + 1
+					while not self:GetVisualLineY(caret.y) do
+						caret.y = caret.y + 1
+					end
+					caret.x = renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x))
 					
 					if caret.y == #lines then break end
 				end
 			elseif caret.y > 1 then
-				caret.x = renderToRealPos(lines[caret.y - 1].str, realToRenderPos(lines[caret.y].str, caret.x))
+				local cy = caret.y
 				caret.y = caret.y - 1
+				while not self:GetVisualLineY(caret.y) do
+					caret.y = caret.y - 1
+				end
+				caret.x = renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x))
 				
 				if caret.y == 1 then break end
 			end

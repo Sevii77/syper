@@ -70,7 +70,8 @@ function ContentTable:InsertLine(y, str)
 		mode = nil,
 		mode_repl = nil,
 		render = nil,
-		pair = {}
+		fold = y > 1 and self.lines[y - 1].fold,
+		folded = false,
 	})
 	
 	local dirty = {}
@@ -79,9 +80,13 @@ function ContentTable:InsertLine(y, str)
 	end
 	dirty[y] = true
 	self.dirty = dirty
+	
+	self:UpdateLineData()
 end
 
 function ContentTable:RemoveLine(y)
+	self:UnfoldLine(y)
+	
 	table.remove(self.lines, y)
 	
 	local dirty = {}
@@ -92,6 +97,8 @@ function ContentTable:RemoveLine(y)
 		dirty[y] = true
 	end
 	self.dirty = dirty
+	
+	self:UpdateLineData()
 end
 
 function ContentTable:ModifyLine(y, str)
@@ -103,14 +110,56 @@ function ContentTable:ModifyLine(y, str)
 			mode = nil,
 			mode_repl = nil,
 			render = nil,
-			-- pair = {}
+			fold = y > 1 and self.lines[y - 1].fold,
+			folded = false,
 		}
+		
+		self:UpdateLineData()
 	else
 		self.lines[y].str = str
 		self.lines[y].len = self.len(str)
 	end
 	
 	self.dirty[y] = true
+end
+
+function ContentTable:FoldLine(y)
+	local line = self.lines[y]
+	local x, pair = nil
+	for x2, token in ipairs(line.tokens) do
+		if token.foldable and token.pair_main then
+			pair = token.pair
+			x = x2
+			
+			break
+		end
+	end
+	
+	if not pair then return end
+	if pair.y <= y + 1 then return end
+	
+	line.folded = true
+	for y2 = y + 1, pair.y - 1 do
+		self.lines[y2].fold = true
+		self.lines[y2].folded = false
+	end
+	
+	self:UpdateLineData()
+end
+
+function ContentTable:UnfoldLine(y)
+	local line = self.lines[y]
+	if not line.folded then return end
+	
+	line.folded = false
+	for y2 = y + 1, #self.lines do
+		local line = self.lines[y2]
+		if not line.fold then break end
+		
+		line.fold = false
+	end
+	
+	self:UpdateLineData()
 end
 
 function ContentTable:InsertIntoLine(y, str, x)
@@ -249,20 +298,29 @@ function ContentTable:RebuildTokenPairs()
 	end
 	
 	for y, line in ipairs(self.lines) do
+		line.foldable = false
+		
 		for x, token in ipairs(line.tokens) do
 			token.pair = nil
 			local token_override = nil
 			
 			local pair = self.mode.pair2[token.str]
 			if pair and pair.token == token.token then
-				local pos
+				local pos, level
 				for _, k in ipairs(pair.open) do
-					pos = scopes[k][#scopes[k]]
-					scopes[k][#scopes[k]] = nil
+					level = #scopes[k]
+					pos = scopes[k][level]
+					scopes[k][level] = nil
 				end
 				
 				if pos then
-					self.lines[pos.y].tokens[pos.x].pair = {x = x, y = y}
+					local l = self.lines[pos.y]
+					l.foldable = l.foldable or y > pos.y + 1
+					l.scope_level = level
+					local t = l.tokens[pos.x]
+					t.pair = {x = x, y = y}
+					t.pair_main = true
+					t.foldable = y > pos.y + 1
 					token.pair = pos
 				else
 					-- mark token error
@@ -298,11 +356,38 @@ function ContentTable:RebuildTokenPairs()
 	return changed
 end
 
+function ContentTable:GetUnfoldedLineCount()
+	local c = 0
+	for y, line in ipairs(self.lines) do
+		if not line.fold then
+			c = c + 1
+		end
+	end
+	return c
+end
+
+-- used for folding stuff
+function ContentTable:UpdateLineData()
+	self.visual_lines = {}
+	
+	local vy = 1
+	for y, line in ipairs(self.lines) do
+		if not line.fold then
+			self.visual_lines[vy] = y
+			line.visual_y = vy
+			vy = vy + 1
+		else
+			line.visual_y = nil
+		end
+	end
+end
+
 function Lexer.createContentTable(lexer, mode)
 	return setmetatable({
 		lexer = lexer,
 		mode = mode,
 		lines = {},
+		visual_lines = {},
 		dirty = {},
 		len = Syper.Settings.settings.utf8 and utf8.len or string.len,
 		sub = Syper.Settings.settings.utf8 and utf8.sub or string.sub,

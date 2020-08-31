@@ -9,10 +9,14 @@ return [=[{
 	"style": "monokai",
 	
 	// Space to keep around the line numbers
-	"gutter_margin": 10,
+	"gutter_margin": 15,
 	
 	// Relative line numbers
 	"gutter_relative": false,
+	
+	// Format of folded lines
+	"fold_format": "[%d]",
+	// " ··· "
 	
 	// Tab size
 	"tab_size": 4,
