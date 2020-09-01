@@ -32,6 +32,7 @@ return [=[{
 	"ctrl+/": {"act": "comment"},
 	"ctrl+a": {"act": "selectall"},
 	
+	"insert": {"act": "toggle_insert"},
 	"mouse_1": {"act": "setcaret"},
 	"ctrl+mouse_1": {"act": "setcaret", "args": [true]},
 	

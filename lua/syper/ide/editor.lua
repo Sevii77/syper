@@ -327,6 +327,10 @@ function Act.selectall(self)
 	self.carets[1].select_y = 1
 end
 
+function Act.toggle_insert(self)
+	self.caretinsert = not self.caretinsert
+end
+
 local lx, ly, stage, last_id
 function Act.setcaret(self, new)
 	local sx, sy = self:GetCursorAsCaret()
@@ -617,8 +621,8 @@ function Editor:Init()
 	self.history_pointer = 0
 	self.history_block = {}
 	self.carets = {}
-	self.caretmode = RealTime()
-	self.caretblink = 0
+	self.caretinsert = false
+	self.caretblink = RealTime()
 	self.gutter_size = 50
 	self.editable = true
 	self.path = nil
@@ -823,7 +827,13 @@ function Editor:Init()
 			end
 			
 			local offset = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1)))
-			surface.DrawRect(offset, vy * th - th, 2, th)
+			if self.caretinsert then
+				local str = getRenderString(sub(self.content_data:GetLineStr(y), x, x))
+				local w = surface.GetTextSize(str == "\n" and " " or str)
+				surface.DrawRect(offset, vy * th - 2, w, 2)
+			else
+				surface.DrawRect(offset, vy * th - th, 2, th)
+			end
 		end
 		
 		-- pairs
@@ -1020,8 +1030,6 @@ function Editor:OnTextChanged()
 			bracket = self.mode.bracket[str]
 			bracket2 = self.mode.bracket2[str]
 		end
-	elseif self.is_pasted then
-		self.is_pasted = false
 	end
 	
 	if ignore_chars[str] then return end
@@ -1031,19 +1039,29 @@ function Editor:OnTextChanged()
 		self:RemoveSelection()
 	end
 	
-	for caret_id, caret in ipairs(self.carets) do
-		local line_str = self.content_data:GetLineStr(caret.y)
-		if bracket2 and sub(line_str, caret.x, caret.x) == str then
-			if not bracket2.ignore_char[sub(line_str, caret.x - 1, caret.x - 1)] then
-				self:MoveCaret(caret_id, 1, nil)
+	if self.caretinsert and not self.is_pasted then
+		local l = len(str)
+		for caret_id, caret in ipairs(self.carets) do
+			if caret.x < self.content_data:GetLineLength(caret.y) then
+				self:RemoveStrAt(caret.x, caret.y, l, true)
+			end
+			self:InsertStrAt(caret.x, caret.y, str, true)
+		end
+	else
+		for caret_id, caret in ipairs(self.carets) do
+			local line_str = self.content_data:GetLineStr(caret.y)
+			if bracket2 and sub(line_str, caret.x, caret.x) == str then
+				if not bracket2.ignore_char[sub(line_str, caret.x - 1, caret.x - 1)] then
+					self:MoveCaret(caret_id, 1, nil)
+				else
+					self:InsertStrAt(caret.x, caret.y, str, true)
+				end
+			elseif bracket and not bracket.ignore_mode[self:GetToken(caret.x, caret.y).mode] then
+				self:InsertStrAt(caret.x, caret.y, str .. bracket.close, true)
+				self:MoveCaret(caret_id, -1, nil)
 			else
 				self:InsertStrAt(caret.x, caret.y, str, true)
 			end
-		elseif bracket and not bracket.ignore_mode[self:GetToken(caret.x, caret.y).mode] then
-			self:InsertStrAt(caret.x, caret.y, str .. bracket.close, true)
-			self:MoveCaret(caret_id, -1, nil)
-		else
-			self:InsertStrAt(caret.x, caret.y, str, true)
 		end
 	end
 	
@@ -1057,6 +1075,7 @@ function Editor:OnTextChanged()
 		end
 	end
 	
+	self.is_pasted = false
 	self:PushHistoryBlock()
 	self:Rebuild()
 end
