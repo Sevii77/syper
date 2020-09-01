@@ -623,25 +623,63 @@ function Editor:Init()
 	self.on_mouse_release = {}
 	self.last_click = 0
 	self.mouse_captures = 0
+	self.content_render_width = 0
 	
 	self:SetAllowNonAsciiCharacters(true)
 	self:SetMultiline(true)
 	
-	self.scrolltarget = 0
-	self.scrollbar = self:Add("DVScrollBar")
-	self.scrollbar:Dock(RIGHT)
-	self.scrollbar:SetWidth(12)
-	self.scrollbar:SetHideButtons(true)
-	self.scrollbar.OnMouseWheeled = function(_, delta) self:OnMouseWheeled(delta) return true end
-	self.scrollbar.OnMousePressed = function()
-		local y = select(2, self.scrollbar:CursorPos())
-		self:DoScroll((y > self.scrollbar.btnGrip.y and 1 or -1) * self:VisibleLineCount() * settings.font_size)
+	self.gutter = self:Add("panel")
+	self.gutter:Dock(LEFT)
+	self.gutter.OnMousePressed = function(_, key)
+		if key ~= MOUSE_LEFT then return end
+		
+		local y = self:GetCursorAsY()
+		local line = self.content_data.lines[y]
+		if line.foldable then
+			if line.folded then
+				self.content_data:UnfoldLine(y)
+			else
+				self.content_data:FoldLine(y)
+			end
+			
+			self:UpdateScrollbar()
+		end
+		
+		return
 	end
-	self.scrollbar.Paint = function(_, w, h)
-		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.highlight)
-	end
-	self.scrollbar.btnGrip.Paint = function(_, w, h)
-		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.gutter_foreground)
+	self.gutter.Paint = function(_, w, h)
+		local th = settings.font_size
+		
+		surface.SetDrawColor(settings.style_data.gutter_background)
+		surface.DrawRect(0, 0, w, h)
+		
+		local y = self:FirstVisibleLine()
+		local ye = y + self:VisibleLineCount()
+		for ry = self:FirstVisibleLineRender(), self.content_data:GetLineCount() do
+			local line = self.content_data.lines[ry]
+			if not line.fold then
+				local offset_y = y * th - th - self.scrollbar.Scroll
+				
+				local linenum = tostring(settings.gutter_relative and ry - self.carets[1].y or ry)
+				surface.SetTextColor(settings.style_data.gutter_foreground)
+				surface.SetFont("syper_syntax_1")
+				local tw = surface.GetTextSize(linenum)
+				surface.SetTextPos(w - tw - settings.gutter_margin, offset_y)
+				surface.DrawText(linenum)
+				
+				if line.foldable then
+					local str = line.folded and "+" or "-"
+					local tw = surface.GetTextSize(str)
+					surface.SetTextPos(w - tw - 2, offset_y - 1)
+					surface.DrawText(str)
+				end
+				
+				y = y + 1
+				if y == ye then break end
+			end
+		end
+		
+		return true
 	end
 	
 	self.lineholder_dock = self:Add("Panel")
@@ -652,7 +690,6 @@ function Editor:Init()
 	self.lineholder:SetMouseInputEnabled(false)
 	self.lineholder.Paint = function(_, w, h)
 		local th = settings.font_size
-		local gw = self.gutter_size
 		
 		-- caret select
 		surface.SetFont("syper_syntax_1")
@@ -675,37 +712,34 @@ function Editor:Init()
 					if ry then
 						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
 						local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx, ex)))
-						surface.DrawRect(gw + offset + 1, ry * th - th + 1, tw - 2, th - 2)
+						surface.DrawRect(offset + 1, ry * th - th + 1, tw - 2, th - 2)
 					end
 				else
 					local ry = self:GetVisualLineY(sy)
 					if ry then
 						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
 						local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx))) + th / 3
-						surface.DrawRect(gw + offset + 1, ry * th - th + 1, tw - 1, th - 1)
+						surface.DrawRect(offset + 1, ry * th - th + 1, tw - 1, th - 1)
 					end
 					
 					for y = sy + 1, ey - 1 do
 						local ry = self:GetVisualLineY(y)
 						if ry then
 							local tw = surface.GetTextSize(getRenderString(lines[y].str)) + th / 3
-							surface.DrawRect(gw, ry * th - th, tw, th)
+							surface.DrawRect(0, y * th - th, tw, th)
 						end
 					end
 					
 					local ry = self:GetVisualLineY(ey)
 					if ry then
 						local tw = surface.GetTextSize(getRenderString(sub(lines[ey].str, 1, ex)))
-						surface.DrawRect(gw, ry * th - th, tw - 1, th - 1)
+						surface.DrawRect(0, ry * th - th, tw - 1, th - 1)
 					end
 				end
 			end
 		end
 		
 		-- content
-		surface.SetDrawColor(settings.style_data.gutter_background)
-		surface.DrawRect(0, 0, gw, h)
-		
 		local y = self:FirstVisibleLine()
 		local ye = y + self:VisibleLineCount()
 		for ry = self:FirstVisibleLineRender(), self.content_data:GetLineCount() do
@@ -713,26 +747,12 @@ function Editor:Init()
 			if not line.fold then
 				local offset_y = y * th - th
 				
-				local linenum = tostring(settings.gutter_relative and ry - self.carets[1].y or ry)
-				surface.SetTextColor(settings.style_data.gutter_foreground)
-				surface.SetFont("syper_syntax_1")
-				local tw = surface.GetTextSize(linenum)
-				surface.SetTextPos(gw - tw - settings.gutter_margin, offset_y)
-				surface.DrawText(linenum)
-				
-				if line.foldable then
-					local str = line.folded and "+" or "-"
-					local tw = surface.GetTextSize(str)
-					surface.SetTextPos(gw - tw - 2, offset_y - 1)
-					surface.DrawText(str)
-				end
-				
-				local offset_x = gw
+				local offset_x = 0
 				local render = line.render
 				for i, token in ipairs(render) do
 					if token[5] then
 						surface.SetDrawColor(token[5])
-						surface.DrawRect(offset_x, offset_y, i == #render and 9999 or token[1], th)
+						surface.DrawRect(offset_x + 1, offset_y + 1, i == #render and 9999 or (token[1] - 2), th - 2)
 					end
 					
 					surface.SetTextColor(token[4])
@@ -775,7 +795,6 @@ function Editor:Init()
 		
 		local lines = self.content_data.lines
 		local th = settings.font_size
-		local gw = self.gutter_size
 		
 		-- carets
 		surface.SetDrawColor(255, 255, 255, math.Clamp(math.cos((RealTime() - self.caretblink) * math.pi * 1.6) * 255 + 128, 0, 255))
@@ -797,7 +816,7 @@ function Editor:Init()
 			end
 			
 			local offset = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1)))
-			surface.DrawRect(gw + offset, vy * th - th, 2, th)
+			surface.DrawRect(offset, vy * th - th, 2, th)
 		end
 		
 		-- pairs
@@ -814,15 +833,45 @@ function Editor:Init()
 					
 					local offset = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, 1, token.s - 1)))
 					local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, token.s, token.e)))
-					surface.DrawRect(gw + offset, self:GetVisualLineY(caret.y) * th - 1, tw, 1)
+					surface.DrawRect(offset, self:GetVisualLineY(caret.y) * th - 1, tw, 1)
 					
 					local token = lines[y].tokens[x]
 					local offset = surface.GetTextSize(getRenderString(sub(lines[y].str, 1, token.s - 1)))
 					local tw = surface.GetTextSize(getRenderString(sub(lines[y].str, token.s, token.e)))
-					surface.DrawRect(gw + offset, self:GetVisualLineY(y) * th - 1, tw, 1)
+					surface.DrawRect(offset, self:GetVisualLineY(y) * th - 1, tw, 1)
 				end
 			end
 		end
+	end
+	
+	self.scrolltarget = 0
+	self.scrollbar = self:Add("DVScrollBar")
+	self.scrollbar:SetHideButtons(true)
+	self.scrollbar.OnMouseWheeled = function(_, delta) self:OnMouseWheeled(delta, false) return true end
+	self.scrollbar.OnMousePressed = function()
+		local y = select(2, self.scrollbar:CursorPos())
+		self:DoScroll((y > self.scrollbar.btnGrip.y and 1 or -1) * self:VisibleLineCount() * settings.font_size)
+	end
+	self.scrollbar.Paint = function(_, w, h)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.highlight)
+	end
+	self.scrollbar.btnGrip.Paint = function(_, w, h)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.gutter_foreground)
+	end
+	
+	self.scrolltarget_h = 0
+	self.scrollbar_h = self:Add("DHScrollBar")
+	self.scrollbar_h:SetHideButtons(true)
+	self.scrollbar_h.OnMouseWheeled = function(_, delta) self:OnMouseWheeled(delta, true) return true end
+	self.scrollbar_h.OnMousePressed = function()
+		local x = self.scrollbar:CursorPos()
+		self:DoScrollH((x > self.scrollbar.btnGrip.x and 1 or -1) * self.lineholder_dock:GetWide())
+	end
+	self.scrollbar_h.Paint = function(_, w, h)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.highlight)
+	end
+	self.scrollbar_h.btnGrip.Paint = function(_, w, h)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.gutter_foreground)
 	end
 	
 	self:SetCursor("beam")
@@ -903,22 +952,6 @@ function Editor:OnMousePressed(key)
 	self.last_click = RealTime()
 	if key == MOUSE_LEFT then
 		self:RequestFocus()
-		
-		if self:LocalCursorPos() <= self.gutter_size then
-			local y = self:GetCursorAsY()
-			local line = self.content_data.lines[y]
-			if line.foldable then
-				if line.folded then
-					self.content_data:UnfoldLine(y)
-				else
-					self.content_data:FoldLine(y)
-				end
-				
-				self:UpdateScrollbar()
-			end
-			
-			return
-		end
 	end
 	
 	if bind then
@@ -959,8 +992,14 @@ function Editor:OnCursorMoved(x, y)
 	end
 end
 
-function Editor:OnMouseWheeled(delta)
-	self:DoScroll(-delta * settings.font_size * settings.scroll_multiplier)
+function Editor:OnMouseWheeled(delta, horizontal)
+	horizontal = horizontal == nil and input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT)
+	
+	if horizontal then
+		self:DoScrollH(-delta * settings.font_size * settings.scroll_multiplier)
+	else
+		self:DoScroll(-delta * settings.font_size * settings.scroll_multiplier)
+	end
 end
 
 function Editor:OnTextChanged()
@@ -1022,9 +1061,19 @@ function Editor:OnLoseFocus()
 	end
 end
 
-function Editor:PerformLayout()
-	self.lineholder:SetSize(self.lineholder_dock:GetWide(), 99999)
+function Editor:PerformLayout(w, h)
 	self:UpdateScrollbar()
+	
+	if self.scrollbar_h.Enabled then
+		self.scrollbar:SetPos(w - 12, 0)
+		self.scrollbar:SetSize(12, h - 12)
+		
+		self.scrollbar_h:SetPos(self.gutter_size, h - 12)
+		self.scrollbar_h:SetSize(w - self.gutter_size - 12, 12)
+	else
+		self.scrollbar:SetPos(w - 12)
+		self.scrollbar:SetSize(12, h)
+	end
 end
 
 function Editor:RequestCapture(yes)
@@ -1033,17 +1082,38 @@ function Editor:RequestCapture(yes)
 end
 
 function Editor:UpdateScrollbar()
+	local mw = 0
+	for y, line in ipairs(self.content_data.lines) do
+		if not line.fold then
+			mw = math.max(mw, line.render_w)
+		end
+	end
+	mw = mw + settings.font_size * 2
+	self.content_render_width = mw
+	
 	local s = self.lineholder_dock:GetTall()
-	self.scrollbar:SetUp(s, s + settings.font_size * (self.content_data:GetUnfoldedLineCount() - 1) + 1)
+	local h = s + settings.font_size * (self.content_data:GetUnfoldedLineCount() - 1) + 1
+	self.lineholder:SetSize(self.content_render_width, h)
+	self.scrollbar:SetUp(s, h)
+	
+	-- horizontal scrollbar
+	local s = self.lineholder_dock:GetWide()
+	self.scrollbar_h:SetEnabled(self.content_render_width > s)
+	
+	if self.scrollbar_h.Enabled then
+		self.scrollbar_h:SetUp(s, self.content_render_width)
+		self.scrollbar_h:SetScroll(self.scrollbar_h.Scroll)
+	end
 end
 
 function Editor:UpdateGutter()
 	surface.SetFont("syper_syntax_1")
 	local w = settings.gutter_margin * 2 + surface.GetTextSize(tostring(-self.content_data:GetLineCount()))
 	self.gutter_size = w
+	self.gutter:SetWidth(w)
 end
 
-function Editor:DoScroll(delta)
+function Editor:DoScroll(delta, horizontal)
 	local speed = settings.scroll_speed
 	self.scrolltarget = math.Clamp(self.scrolltarget + delta, 0, self.scrollbar.CanvasSize)
 	if speed == 0 then
@@ -1053,12 +1123,30 @@ function Editor:DoScroll(delta)
 	end
 end
 
+function Editor:DoScrollH(delta)
+	local speed = settings.scroll_speed
+	self.scrolltarget_h = math.Clamp(self.scrolltarget_h + delta, 0, self.scrollbar_h.CanvasSize)
+	if speed == 0 then
+		self.scrollbar_h:SetScroll(self.scrolltarget_h)
+	else
+		self.scrollbar_h:AnimateTo(self.scrolltarget_h, 0.1 / speed, 0, -1)
+	end
+end
+
 function Editor:OnVScroll(scroll)
 	if self.scrollbar.Dragging then
 		self.scrolltarget = -scroll
 	end
 	
-	self.lineholder:SetPos(0, scroll)
+	self.lineholder:SetPos(self.lineholder.x, scroll)
+end
+
+function Editor:OnHScroll(scroll)
+	if self.scrollbar_h.Dragging then
+		self.scrolltarget_h = -scroll
+	end
+	
+	self.lineholder:SetPos(scroll, self.lineholder.y)
 end
 
 function Editor:VisibleLineCount()
@@ -1198,6 +1286,7 @@ function Editor:Rebuild(line_count, start_line)
 	for y, _ in pairs(table.Merge(self.content_data:RebuildDirty(256), self.content_data:RebuildTokenPairs())) do
 		local line = {}
 		local offset = 0
+		local line_w = 0
 		for i, token in ipairs(self.content_data:GetLineTokens(y)) do
 			local text = getRenderString(token.str, offset)
 			offset = offset + len(text)
@@ -1205,10 +1294,13 @@ function Editor:Rebuild(line_count, start_line)
 			local font = "syper_syntax_" .. (token.token_override or token.token)
 			surface.SetFont(font)
 			local w = surface.GetTextSize(text)
+			line_w = line_w + w
 			line[i] = {w, text, font, clr.f, clr.b}
 		end
 		
-		self.content_data.lines[y].render = line
+		local l = self.content_data.lines[y]
+		l.render_w = line_w
+		l.render = line
 	end
 	
 	self:UpdateScrollbar()
@@ -1339,17 +1431,17 @@ function Editor:ClearExcessCarets()
 end
 
 function Editor:GetCursorAsCaret()
-	local x, y = self:LocalCursorPos()
+	local x, y = self.lineholder_dock:LocalCursorPos()
 	y = math.Clamp(self:GetRealLineY(math.floor((y + self.scrollbar.Scroll) / settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
 	surface.SetFont("syper_syntax_1")
 	local w = surface.GetTextSize(" ")
-	x = renderToRealPos(self.content_data:GetLineStr(y), math.floor((x - self.gutter_size + w / 2) / w) + 1)
+	x = renderToRealPos(self.content_data:GetLineStr(y), math.floor((x + w / 2) / w) + 1)
 	
 	return x, y
 end
 
 function Editor:GetCursorAsY()
-	return math.Clamp(self:GetRealLineY(math.floor((select(2, self:LocalCursorPos()) + self.scrollbar.Scroll) / settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
+	return math.Clamp(self:GetRealLineY(math.floor((select(2, self.lineholder_dock:LocalCursorPos()) + self.scrollbar.Scroll) / settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
 end
 
 function Editor:AddCaret(x, y)

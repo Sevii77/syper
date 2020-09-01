@@ -1,6 +1,8 @@
 do
 	local add = Syper.include
 	
+	add("./scrollbar_h.lua")
+	
 	add("./base.lua")
 	add("./base_textentry.lua")
 	add("./divider_h.lua")
