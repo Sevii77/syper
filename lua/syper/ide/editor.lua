@@ -593,7 +593,7 @@ end
 function Act.fold_level(self, level)
 	local cd = self.content_data
 	for y, line in ipairs(cd.lines) do
-		if line.foldable and line.scope_level == level and not line.folded then
+		if line.foldable and line.scope_level == level and not line.folded and not line.fold then
 			cd:FoldLine(y)
 		end
 	end
