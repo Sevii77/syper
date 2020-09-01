@@ -270,6 +270,28 @@ function Act.outdent(self)
 	self:Rebuild()
 end
 
+function Act.reindent_file(self)
+	for y, line in ipairs(self.content_data.lines) do
+		local cur_level = 0
+		local s = 1
+		while s do
+			s = string.match(line.str, "^" .. tab_str .. "()", s)
+			if s then
+				cur_level = cur_level + 1
+			end
+		end
+		
+		if cur_level > line.indent_level then
+			self:RemoveStrAt(1, y, cur_level - line.indent_level, true)
+		elseif cur_level < line.indent_level then
+			self:InsertStrAt(1, y, string.rep(tab_str, line.indent_level - cur_level), true)
+		end
+	end
+	
+	self:PushHistoryBlock()
+	self:Rebuild()
+end
+
 function Act.comment(self)
 	local lines = self.content_data.lines
 	for caret_id, caret in ipairs(self.carets) do
@@ -1065,7 +1087,7 @@ function Editor:OnTextChanged()
 		end
 	end
 	
-	if settings.indent_smart then
+	if settings.indent_smart and not self.is_pasted then
 		local lines = self.content_data.lines
 		for caret_id, caret in ipairs(self.carets) do
 			local str = string.match(lines[caret.y].str, "%s*(%a+)[\n%z]")

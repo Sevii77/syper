@@ -29,6 +29,7 @@ return [=[{
 	"enter": {"act": "newline"},
 	"tab": {"act": "indent"},
 	"shift+tab": {"act": "outdent"},
+	"ctrl+shift+tab": {"act": "reindent_file"},
 	"ctrl+/": {"act": "comment"},
 	"ctrl+a": {"act": "selectall"},
 	

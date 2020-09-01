@@ -303,6 +303,7 @@ function ContentTable:RebuildTokenPairs()
 		line.foldable = false
 		
 		local indent_level_sum = 0
+		local indent_level_changed = false
 		for x, token in ipairs(line.tokens) do
 			token.pair = nil
 			local token_override = nil
@@ -327,6 +328,7 @@ function ContentTable:RebuildTokenPairs()
 					token.pair = pos
 					
 					indent_level_sum = indent_level_sum - 1
+					indent_level_changed = true
 					scope_origin[#scope_origin] = nil
 				else
 					-- mark token error
@@ -341,6 +343,7 @@ function ContentTable:RebuildTokenPairs()
 				end
 				
 				indent_level_sum = indent_level_sum + 1
+				indent_level_changed = true
 				scope_origin[#scope_origin + 1] = y
 			end
 			
@@ -351,9 +354,16 @@ function ContentTable:RebuildTokenPairs()
 			token.token_override = token_override
 		end
 		
+		if indent_level_sum <= (indent_level_changed and 0 or -1) then
+			indent_level = indent_level - 1
+		end
+		
 		line.indent_level = indent_level
 		line.scope_origin = scope_origin[#scope_origin] or 1
-		indent_level = indent_level + (indent_level_sum < 0 and -1 or (indent_level_sum > 0 and 1 or 0))
+		
+		if indent_level_sum >= (indent_level_changed and 0 or 1) then
+			indent_level = indent_level + 1
+		end
 	end
 	
 	-- mark all unfinished error
