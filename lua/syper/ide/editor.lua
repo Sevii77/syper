@@ -170,12 +170,11 @@ function Act.cut(self)
 end
 
 function Act.paste(self)
-	-- This will never be used
-	self.is_pasted = true
+	self.is_pasted = 1
 end
 
 function Act.pasteindent(self)
-	-- TODO
+	self.is_pasted = 2
 end
 
 function Act.newline(self)
@@ -282,7 +281,7 @@ function Act.reindent_file(self)
 		end
 		
 		if cur_level > line.indent_level then
-			self:RemoveStrAt(1, y, cur_level - line.indent_level, true)
+			self:RemoveStrAt(1, y, (cur_level - line.indent_level) * tab_strsize, true)
 		elseif cur_level < line.indent_level then
 			self:InsertStrAt(1, y, string.rep(tab_str, line.indent_level - cur_level), true)
 		end
@@ -1061,65 +1060,125 @@ function Editor:OnTextChanged()
 		self:RemoveSelection()
 	end
 	
-	if self.caretinsert and not self.is_pasted then
-		local l = len(str)
-		for caret_id, caret in ipairs(self.carets) do
-			if caret.x < self.content_data:GetLineLength(caret.y) then
-				self:RemoveStrAt(caret.x, caret.y, l, true)
+	if self.is_pasted then
+		-- indent pasted str
+		if self.is_pasted == 2 then
+			-- create a content table
+			local lines, p = {}, 1
+			while true do
+				local s = string.find(str, "\n", p)
+				lines[#lines + 1] = string.sub(str, p, s)
+				if not s then break end
+				p = s + 1
 			end
-			self:InsertStrAt(caret.x, caret.y, str, true)
+			
+			local cd = Lexer.createContentTable(self.lexer, self.mode)
+			for y, str in ipairs(lines) do
+				cd:ModifyLine(y, str)
+			end
+			cd:AppendToLine(#lines, "\n")
+			
+			cd:RebuildLines(1, #lines)
+			cd:RebuildTokenPairs()
+			
+			-- reindent it
+			local str_tbl = {}
+			for y, line in ipairs(cd.lines) do
+				local cur_level = 0
+				local s = 1
+				while s do
+					s = string.match(line.str, "^" .. tab_str .. "()", s)
+					if s then
+						cur_level = cur_level + 1
+					end
+				end
+				
+				if cur_level > line.indent_level then
+					str_tbl[#str_tbl + 1] = sub(line.str, (cur_level - line.indent_level + 1) * tab_strsize)
+				elseif cur_level < line.indent_level then
+					str_tbl[#str_tbl + 1] = string.rep(tab_str, line.indent_level - cur_level) .. line.str
+				else
+					str_tbl[#str_tbl + 1] = line.str
+				end
+			end
+			str_tbl[#str_tbl] = string.sub(str_tbl[#str_tbl], 1, -2)
+			
+			for caret_id, caret in ipairs(self.carets) do
+				local spacer = string.match(self.content_data:GetLineStr(caret.y), "^([^\n%S]*)")
+				local str_tbl2 = {str_tbl[1]}
+				for y = 2, #str_tbl do
+					str_tbl2[y] = spacer .. str_tbl[y]
+				end
+				
+				self:InsertStrAt(caret.x, caret.y, table.concat(str_tbl2, ""), true)
+			end
+			
+			self:PushHistoryBlock()
+		else
+			self:InsertStr(str)
 		end
 	else
-		for caret_id, caret in ipairs(self.carets) do
-			local line_str = self.content_data:GetLineStr(caret.y)
-			if bracket2 and sub(line_str, caret.x, caret.x) == str then
-				if not bracket2.ignore_char[sub(line_str, caret.x - 1, caret.x - 1)] then
-					self:MoveCaret(caret_id, 1, nil)
+		if self.caretinsert then
+			local l = len(str)
+			for caret_id, caret in ipairs(self.carets) do
+				if caret.x < self.content_data:GetLineLength(caret.y) then
+					self:RemoveStrAt(caret.x, caret.y, l, true)
+				end
+				self:InsertStrAt(caret.x, caret.y, str, true)
+			end
+		else
+			for caret_id, caret in ipairs(self.carets) do
+				local line_str = self.content_data:GetLineStr(caret.y)
+				if bracket2 and sub(line_str, caret.x, caret.x) == str then
+					if not bracket2.ignore_char[sub(line_str, caret.x - 1, caret.x - 1)] then
+						self:MoveCaret(caret_id, 1, nil)
+					else
+						self:InsertStrAt(caret.x, caret.y, str, true)
+					end
+				elseif bracket and not bracket.ignore_mode[self:GetToken(caret.x, caret.y).mode] then
+					self:InsertStrAt(caret.x, caret.y, str .. bracket.close, true)
+					self:MoveCaret(caret_id, -1, nil)
 				else
 					self:InsertStrAt(caret.x, caret.y, str, true)
 				end
-			elseif bracket and not bracket.ignore_mode[self:GetToken(caret.x, caret.y).mode] then
-				self:InsertStrAt(caret.x, caret.y, str .. bracket.close, true)
-				self:MoveCaret(caret_id, -1, nil)
-			else
-				self:InsertStrAt(caret.x, caret.y, str, true)
 			end
 		end
-	end
-	
-	if settings.indent_smart and not self.is_pasted then
-		local lines = self.content_data.lines
-		for caret_id, caret in ipairs(self.carets) do
-			local str = string.match(lines[caret.y].str, "%s*(%a+)[\n%z]")
-			local outdent = self.mode.outdent[str]
-			if outdent then
-				local level, level_origin = 0, 0
-				
-				local s = 1
-				while s do
-					s = string.match(lines[caret.y].str, "^" .. tab_str .. "()", s)
-					if s then
-						level = level + 1
+		
+		if settings.indent_smart then
+			local lines = self.content_data.lines
+			for caret_id, caret in ipairs(self.carets) do
+				local str = string.match(lines[caret.y].str, "%s*(%a+)[\n%z]")
+				local outdent = self.mode.outdent[str]
+				if outdent then
+					local level, level_origin = 0, 0
+					
+					local s = 1
+					while s do
+						s = string.match(lines[caret.y].str, "^" .. tab_str .. "()", s)
+						if s then
+							level = level + 1
+						end
 					end
-				end
-				
-				local s = 1
-				while s do
-					s = string.match(lines[lines[caret.y].scope_origin].str, "^" .. tab_str .. "()", s)
-					if s then
-						level_origin = level_origin + 1
+					
+					local s = 1
+					while s do
+						s = string.match(lines[lines[caret.y].scope_origin].str, "^" .. tab_str .. "()", s)
+						if s then
+							level_origin = level_origin + 1
+						end
 					end
-				end
-				
-				if level > level_origin then
-					self:RemoveStrAt(1, caret.y, tab_strsize * (level - level_origin), true)
+					
+					if level > level_origin then
+						self:RemoveStrAt(1, caret.y, tab_strsize * (level - level_origin), true)
+					end
 				end
 			end
 		end
+		
+		self:PushHistoryBlock()
 	end
 	
-	self.is_pasted = false
-	self:PushHistoryBlock()
+	self.is_pasted = nil
 	self:Rebuild()
 end
 
@@ -1359,7 +1418,7 @@ function Editor:Refresh()
 	end
 end
 
-function Editor:Rebuild(line_count, start_line)
+function Editor:Rebuild()
 	local t = SysTime()
 	
 	local h = settings.font_size
