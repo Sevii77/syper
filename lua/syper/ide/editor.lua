@@ -606,6 +606,9 @@ end
 
 ----------------------------------------
 
+local linefold_down = Material("materials/syper/fa-caret-down.png", "noclamp smooth")
+local linefold_right = Material("materials/syper/fa-caret-right.png", "noclamp smooth")
+
 local Editor = {Act = Act}
 
 function Editor:Init()
@@ -652,6 +655,7 @@ function Editor:Init()
 		
 		surface.SetDrawColor(settings.style_data.gutter_background)
 		surface.DrawRect(0, 0, w, h)
+		surface.SetDrawColor(settings.style_data.gutter_foreground)
 		
 		local y = self:FirstVisibleLine()
 		local ye = y + self:VisibleLineCount()
@@ -668,10 +672,12 @@ function Editor:Init()
 				surface.DrawText(linenum)
 				
 				if line.foldable then
-					local str = line.folded and "+" or "-"
-					local tw = surface.GetTextSize(str)
-					surface.SetTextPos(w - tw - 2, offset_y - 1)
-					surface.DrawText(str)
+					-- local str = line.folded and "+" or "-"
+					-- local tw = surface.GetTextSize(str)
+					-- surface.SetTextPos(w - tw - 2, offset_y - 1)
+					-- surface.DrawText(str)
+					surface.SetMaterial(line.folded and linefold_right or linefold_down)
+					surface.DrawTexturedRect(w - th, offset_y, th, th)
 				end
 				
 				y = y + 1
@@ -726,7 +732,7 @@ function Editor:Init()
 						local ry = self:GetVisualLineY(y)
 						if ry then
 							local tw = surface.GetTextSize(getRenderString(lines[y].str)) + th / 3
-							surface.DrawRect(0, y * th - th, tw, th)
+							surface.DrawRect(0, ry * th - th, tw, th)
 						end
 					end
 					
@@ -797,6 +803,7 @@ function Editor:Init()
 		local th = settings.font_size
 		
 		-- carets
+		surface.SetFont("syper_syntax_1")
 		surface.SetDrawColor(255, 255, 255, math.Clamp(math.cos((RealTime() - self.caretblink) * math.pi * 1.6) * 255 + 128, 0, 255))
 		
 		for caret_id, caret in ipairs(self.carets) do
@@ -1276,7 +1283,18 @@ function Editor:SetPath(path)
 end
 
 function Editor:Refresh()
+	local folds = {}
+	for y, line in ipairs(self.content_data.lines) do
+		if line.folded then
+			folds[#folds + 1] = y
+		end
+	end
+	
 	self:SetContent(self:GetContentStr())
+	
+	for _, y in ipairs(folds) do
+		self.content_data:FoldLine(y)
+	end
 end
 
 function Editor:Rebuild(line_count, start_line)

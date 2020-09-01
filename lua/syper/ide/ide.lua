@@ -37,7 +37,7 @@ function Act.command_overlay(self, str)
 		return
 	end
 	
-	local tab = vgui.GetKeyboardFocus():GetParent()
+	local tab = vgui.GetKeyboardFocus()
 	self.command_overlay_tab = tab
 	local cmd = self:Add("DTextEntry")
 	cmd:SetHeight(30)
@@ -254,65 +254,4 @@ function Syper.OpenIDE()
 		editor:SetContent("-- editor " .. i)
 		ide.tabhandler:AddTab("editor " .. i, editor)
 	end
-end
-
-function Syper.OpenBinds()
-	local ide = vgui.Create("SyperIDE")
-	ide:SetSizable(true)
-	ide:SetSize(1500, 800)
-	ide:SetTitle("Syper - Keybinds")
-	-- ide:Center()
-	ide:MakePopup()
-	
-	local def = ide:Add("SyperEditor")
-	def:SetIDE(ide)
-	def:SetSyntax("json")
-	def:SetContent(include("syper/default_binds.lua"))
-	def:SetEditable(false)
-	
-	local conf = ide:Add("SyperEditor")
-	conf:SetIDE(ide)
-	conf:SetSyntax("json")
-	conf:SetPath("syper/keybinds.json")
-	conf:ReloadFile()
-	conf.OnSave = function(self)
-		Settings.loadBinds()
-	end
-	
-	local div = ide:Add("SyperHDivider")
-	div:Dock(FILL)
-	div:SetLeft(def)
-	div:SetRight(conf)
-	div:CenterDiv()
-end
-
-
-function Syper.OpenSettings()
-	local ide = vgui.Create("SyperIDE")
-	ide:SetSizable(true)
-	ide:SetSize(1500, 800)
-	ide:SetTitle("Syper - Settings")
-	-- ide:Center()
-	ide:MakePopup()
-	
-	local def = ide:Add("SyperEditor")
-	def:SetIDE(ide)
-	def:SetSyntax("json")
-	def:SetContent(include("syper/default_settings.lua"))
-	def:SetEditable(false)
-	
-	local conf = ide:Add("SyperEditor")
-	conf:SetIDE(ide)
-	conf:SetSyntax("json")
-	conf:SetPath("syper/settings.json")
-	conf:ReloadFile()
-	conf.OnSave = function(self)
-		Settings.loadSettings()
-	end
-	
-	local div = ide:Add("SyperHDivider")
-	div:Dock(FILL)
-	div:SetLeft(def)
-	div:SetRight(conf)
-	div:CenterDiv()
 end
