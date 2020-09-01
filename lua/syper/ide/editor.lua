@@ -1066,11 +1066,32 @@ function Editor:OnTextChanged()
 	end
 	
 	if settings.indent_smart then
+		local lines = self.content_data.lines
 		for caret_id, caret in ipairs(self.carets) do
-			local str = string.match(self.content_data:GetLineStr(caret.y), tab_str .. "%s*(%a+)[\n%z]")
+			local str = string.match(lines[caret.y].str, "%s*(%a+)[\n%z]")
 			local outdent = self.mode.outdent[str]
 			if outdent then
-				self:RemoveStrAt(1, caret.y, tab_strsize, true)
+				local level, level_origin = 0, 0
+				
+				local s = 1
+				while s do
+					s = string.match(lines[caret.y].str, "^" .. tab_str .. "()", s)
+					if s then
+						level = level + 1
+					end
+				end
+				
+				local s = 1
+				while s do
+					s = string.match(lines[lines[caret.y].scope_origin].str, "^" .. tab_str .. "()", s)
+					if s then
+						level_origin = level_origin + 1
+					end
+				end
+				
+				if level > level_origin then
+					self:RemoveStrAt(1, caret.y, tab_strsize * (level - level_origin), true)
+				end
 			end
 		end
 	end

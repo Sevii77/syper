@@ -297,9 +297,12 @@ function ContentTable:RebuildTokenPairs()
 		scopes[k] = {}
 	end
 	
+	local indent_level = 0
+	local scope_origin = {}
 	for y, line in ipairs(self.lines) do
 		line.foldable = false
 		
+		local indent_level_sum = 0
 		for x, token in ipairs(line.tokens) do
 			token.pair = nil
 			local token_override = nil
@@ -322,6 +325,9 @@ function ContentTable:RebuildTokenPairs()
 					t.pair_main = true
 					t.foldable = y > pos.y + 1
 					token.pair = pos
+					
+					indent_level_sum = indent_level_sum - 1
+					scope_origin[#scope_origin] = nil
 				else
 					-- mark token error
 					token_override = TOKEN.Error
@@ -333,6 +339,9 @@ function ContentTable:RebuildTokenPairs()
 				for _, k in ipairs(pair.open) do
 					scopes[k][#scopes[k] + 1] = {x = x, y = y}
 				end
+				
+				indent_level_sum = indent_level_sum + 1
+				scope_origin[#scope_origin + 1] = y
 			end
 			
 			if token.token_override ~= token_override then
@@ -341,6 +350,10 @@ function ContentTable:RebuildTokenPairs()
 			
 			token.token_override = token_override
 		end
+		
+		line.indent_level = indent_level
+		line.scope_origin = scope_origin[#scope_origin] or 1
+		indent_level = indent_level + (indent_level_sum < 0 and -1 or (indent_level_sum > 0 and 1 or 0))
 	end
 	
 	-- mark all unfinished error
