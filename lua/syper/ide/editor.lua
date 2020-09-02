@@ -714,7 +714,7 @@ function Editor:Init()
 	end
 	
 	self.lineholder_dock = self:Add("Panel")
-	self.lineholder_dock:Dock(FILL)
+	-- self.lineholder_dock:Dock(FILL)
 	self.lineholder_dock:SetMouseInputEnabled(false)
 	
 	self.lineholder = self.lineholder_dock:Add("Panel")
@@ -885,7 +885,10 @@ function Editor:Init()
 	self.scrolltarget = 0
 	self.scrollbar = self:Add("DVScrollBar")
 	self.scrollbar:SetHideButtons(true)
-	self.scrollbar.OnMouseWheeled = function(_, delta) self:OnMouseWheeled(delta, false) return true end
+	self.scrollbar.OnMouseWheeled = function(_, delta)
+		self:OnMouseWheeled(delta, false)
+		return true
+	end
 	self.scrollbar.OnMousePressed = function()
 		local y = select(2, self.scrollbar:CursorPos())
 		self:DoScroll((y > self.scrollbar.btnGrip.y and 1 or -1) * self:VisibleLineCount() * settings.font_size)
@@ -900,10 +903,13 @@ function Editor:Init()
 	self.scrolltarget_h = 0
 	self.scrollbar_h = self:Add("DHScrollBar")
 	self.scrollbar_h:SetHideButtons(true)
-	self.scrollbar_h.OnMouseWheeled = function(_, delta) self:OnMouseWheeled(delta, true) return true end
+	self.scrollbar_h.OnMouseWheeled = function(_, delta)
+		self:OnMouseWheeled(delta, true)
+		return true
+	end
 	self.scrollbar_h.OnMousePressed = function()
 		local x = self.scrollbar:CursorPos()
-		self:DoScrollH((x > self.scrollbar.btnGrip.x and 1 or -1) * self.lineholder_dock:GetWide())
+		self:DoScrollH((x > self.scrollbar_h.btnGrip.x and 1 or -1) * self.lineholder_dock:GetWide())
 	end
 	self.scrollbar_h.Paint = function(_, w, h)
 		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.highlight)
@@ -1193,12 +1199,18 @@ function Editor:PerformLayout(w, h)
 	self:UpdateScrollbar()
 	
 	if self.scrollbar_h.Enabled then
+		self.lineholder_dock:SetPos(self.gutter_size, 0)
+		self.lineholder_dock:SetSize(w - self.gutter_size - 12, h - 12)
+		
 		self.scrollbar:SetPos(w - 12, 0)
 		self.scrollbar:SetSize(12, h - 12)
 		
 		self.scrollbar_h:SetPos(self.gutter_size, h - 12)
 		self.scrollbar_h:SetSize(w - self.gutter_size - 12, 12)
 	else
+		self.lineholder_dock:SetPos(self.gutter_size, 0)
+		self.lineholder_dock:SetSize(w - self.gutter_size - 12, h)
+		
 		self.scrollbar:SetPos(w - 12)
 		self.scrollbar:SetSize(12, h)
 	end

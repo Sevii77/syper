@@ -8,6 +8,7 @@ do
 	add("./divider_h.lua")
 	add("./divider_v.lua")
 	add("./tabhandler.lua")
+	add("./tree.lua")
 	add("./editor.lua")
 end
 
@@ -101,7 +102,39 @@ function IDE:Init()
 	
 	-- TODO: make look better
 	self.tabhandler = self:Add("SyperTabHandler")
-	self.tabhandler:Dock(FILL)
+	
+	-- TODO: make look better
+	self.filetree = self:Add("SyperTree")
+	self.filetree:AddDirectory("syper/")
+	self.filetree:AddDirectory("luapad/")
+	self.filetree:AddDirectory("starfall/")
+	self.filetree:AddDirectory("sf_filedata/")
+	self.filetree:AddDirectory("expression2/")
+	self.filetree:AddDirectory("e2files/")
+	self.filetree.OnNodePress = function(_, node)
+		local tabhandler = self:GetActiveTabHandler()
+		for i, tab in ipairs(tabhandler.tabs) do
+			if tab.panel.path == node.path then
+				tabhandler:SetActive(i)
+				
+				return
+			end
+		end
+		
+		local editor = self:Add("SyperEditor")
+		editor:SetIDE(self)
+		-- TODO: grab syntax from extension or special folder (expression2/ should be e2 and starfall/ starfall, blablah you get it)
+		editor:SetSyntax(node.ext == "json" and "json" or "lua")
+		editor:SetPath(node.path)
+		editor:ReloadFile()
+		self:AddTab(node.name, editor)
+	end
+	
+	self.div = self:Add("SyperHDivider")
+	self.div:Dock(FILL)
+	self.div:SetLeft(self.filetree)
+	self.div:SetRight(self.tabhandler)
+	self.div:Center()
 	
 	local file = self.bar:AddMenu("File")
 	file:AddOption("New", function()
@@ -109,7 +142,8 @@ function IDE:Init()
 		editor:SetIDE(self)
 		editor:SetSyntax("lua")
 		editor:SetContent("-- Very empty in here")
-		self.tabhandler:AddTab("untitled", editor, self.tabhandler:GetActive() + 1)
+		self:AddTab("untitled", editor)
+		-- self.tabhandler:AddTab("untitled", editor, self.tabhandler:GetActive() + 1)
 	end)
 	file:AddOption("Test", function()
 		local e1 = self:Add("SyperEditor")
@@ -144,7 +178,8 @@ function IDE:Init()
 		div:SetTop(div1)
 		div:SetBottom(div2)
 		
-		self.tabhandler:AddTab("Test", div, self.tabhandler:GetActive() + 1)
+		self:AddTab("Test", div)
+		-- self.tabhandler:AddTab("Test", div, self.tabhandler:GetActive() + 1)
 		div:CenterDiv()
 		div1:CenterDiv()
 		div2:CenterDiv()
@@ -170,7 +205,8 @@ function IDE:Init()
 		local div = self:Add("SyperHDivider")
 		div:SetLeft(def)
 		div:SetRight(conf)
-		self.tabhandler:AddTab("Keybinds", div, self.tabhandler:GetActive() + 1)
+		self:AddTab("Keybinds", div)
+		-- self.tabhandler:AddTab("Keybinds", div, self.tabhandler:GetActive() + 1)
 		div:CenterDiv()
 	end)
 	config:AddOption("Settings", function()
@@ -192,7 +228,8 @@ function IDE:Init()
 		local div = self:Add("SyperHDivider")
 		div:SetLeft(def)
 		div:SetRight(conf)
-		self.tabhandler:AddTab("Settings", div, self.tabhandler:GetActive() + 1)
+		self:AddTab("Settings", div)
+		-- self.tabhandler:AddTab("Settings", div, self.tabhandler:GetActive() + 1)
 		div:CenterDiv()
 	end)
 end
@@ -233,6 +270,15 @@ function IDE:OnMousePressed(key)
 	end
 	
 	DFrame.OnMousePressed(self, key)
+end
+
+function IDE:GetActiveTabHandler()
+	return self.tabhandler
+end
+
+function IDE:AddTab(name, panel)
+	local tabhandler = self:GetActiveTabHandler()
+	tabhandler:AddTab(name, panel, tabhandler:GetActive() + 1)
 end
 
 vgui.Register("SyperIDE", IDE, "DFrame")
