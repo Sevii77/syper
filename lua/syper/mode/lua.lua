@@ -22,18 +22,6 @@ return {
 		{"%)", ignore},
 	},
 	
-	-- pair = {
-	-- 	{{"function", TOKEN.Keyword_Modifier}, {"end", TOKEN.Keyword}},
-	-- 	{{"then", TOKEN.Keyword}, {"elseif", TOKEN.Keyword}, {"else", TOKEN.Keyword}, {"end", TOKEN.Keyword}},
-	-- 	-- {{"elseif", TOKEN.Keyword}, {"elseif", TOKEN.Keyword}, {"else", TOKEN.Keyword}, {"end", TOKEN.Keyword}},
-	-- 	{{"else", TOKEN.Keyword}, {"end", TOKEN.Keyword}},
-	-- 	{{"do", TOKEN.Keyword}, {"end", TOKEN.Keyword}},
-	-- 	{{"repeat", TOKEN.Keyword}, {"until", TOKEN.Keyword}},
-	-- 	{{"{", TOKEN.Punctuation}, {"}", TOKEN.Punctuation}},
-	-- 	{{"(", TOKEN.Punctuation}, {")", TOKEN.Punctuation}},
-	-- 	{{"[", TOKEN.Punctuation}, {"]", TOKEN.Punctuation}},
-	-- },
-	
 	pair = {
 		["function"] = {
 			token = TOKEN.Keyword_Modifier,
