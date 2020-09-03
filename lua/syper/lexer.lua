@@ -231,19 +231,23 @@ function ContentTable:RebuildLine(y)
 	line.mode = mode
 	line.mode_repl = mode_repl
 	
-	while true do
-		local fdata = find(line.str, curbyte, lexer[mode], mode_repl)
-		if not fdata then break end
-		
-		if fdata.mode then
-			mode = fdata.mode
-			mode_repl = fdata.cap
+	if line.len > 2048 then
+		line.tokens[#line.tokens + 1] = {token = TOKEN.Other, str = line.str, mode = mode, mode_repl = mode_repl, s = 1, e = line.len - 1}
+	else
+		while true do
+			local fdata = find(line.str, curbyte, lexer[mode], mode_repl)
+			if not fdata then break end
+			
+			if fdata.mode then
+				mode = fdata.mode
+				mode_repl = fdata.cap
+			end
+			
+			line.tokens[#line.tokens + 1] = {token = fdata.token, str = fdata.str, mode = mode, mode_repl = mode_repl, s = fdata.s, e = fdata.e}
+			curbyte = fdata.e + 1
+			
+			if fdata.str[#fdata.str] == "\n" then break end
 		end
-		
-		line.tokens[#line.tokens + 1] = {token = fdata.token, str = fdata.str, mode = mode, mode_repl = mode_repl, s = fdata.s, e = fdata.e}
-		curbyte = fdata.e + 1
-		
-		if fdata.str[#fdata.str] == "\n" then break end
 	end
 	
 	return mode, mode_repl
