@@ -935,6 +935,10 @@ function Editor:Think()
 		self:ClearExcessCarets()
 	end
 	
+	if self.scroll_to_caret then
+		self:ScrollToCaret()
+	end
+	
 	self.key_handled = nil
 end
 
@@ -1253,7 +1257,7 @@ function Editor:UpdateGutter()
 	self.gutter:SetWidth(w)
 end
 
-function Editor:DoScroll(delta, horizontal)
+function Editor:DoScroll(delta)
 	local speed = settings.scroll_speed
 	self.scrolltarget = math.Clamp(self.scrolltarget + delta, 0, self.scrollbar.CanvasSize)
 	if speed == 0 then
@@ -1309,6 +1313,21 @@ function Editor:FirstVisibleLineRender()
 		if y == m then return ry end
 	end
 	return #lines
+end
+
+function Editor:GetViewBounds()
+	local lines = self.content_data.lines
+	local vy, s, m = 0, self:FirstVisibleLineRender(), self:VisibleLineCount()
+	for y = s, #lines do
+		if not lines[y].fold then
+			vy = vy + 1
+			if vy == m then
+				return s, y
+			end
+		end
+	end
+	
+	return s, #lines
 end
 
 function Editor:GetVisualLineY(y)
@@ -1497,6 +1516,7 @@ end
 
 function Editor:ClearCarets()
 	self.carets = {self.carets[#self.carets]}
+	self:MarkScrollToCaret()
 end
 
 function Editor:MarkClearExcessCarets()
@@ -1572,6 +1592,7 @@ function Editor:ClearExcessCarets()
 	end
 	self.carets = new
 	self.clear_excess_carets = false
+	self:MarkScrollToCaret()
 	
 	local link2 = {}
 	for k, v in pairs(rem) do
@@ -1586,7 +1607,7 @@ function Editor:GetCursorAsCaret()
 	y = math.Clamp(self:GetRealLineY(math.floor((y + self.scrollbar.Scroll) / settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
 	surface.SetFont("syper_syntax_1")
 	local w = surface.GetTextSize(" ")
-	x = renderToRealPos(self.content_data:GetLineStr(y), math.floor((x + w / 2) / w) + 1)
+	x = renderToRealPos(self.content_data:GetLineStr(y), math.floor(((x + self.scrollbar_h.Scroll) + w / 2) / w) + 1)
 	
 	return x, y
 end
@@ -1606,6 +1627,7 @@ function Editor:AddCaret(x, y)
 	}
 	
 	self:MarkClearExcessCarets()
+	self:MarkScrollToCaret()
 	
 	table.sort(self.carets, function(a, b)
 		return a.y > b.y or (a.y == b.y and a.x > b.x)
@@ -1655,6 +1677,7 @@ function Editor:SetCaret(i, x, y)
 	
 	self.caretblink = RealTime()
 	self:MarkClearExcessCarets()
+	self:MarkScrollToCaret()
 end
 
 function Editor:MoveCaret(i, x, y)
@@ -1722,6 +1745,60 @@ function Editor:MoveCaret(i, x, y)
 	
 	self.caretblink = RealTime()
 	self:MarkClearExcessCarets()
+	self:MarkScrollToCaret()
+end
+
+function Editor:MarkScrollToCaret()
+	self.scroll_to_caret = true
+end
+
+function Editor:ScrollToCaret()
+	self.scroll_to_caret = false
+	
+	surface.SetFont("syper_syntax_1")
+	
+	local lines = self.content_data.lines
+	local sy, ey = self:GetViewBounds()
+	sy, ey = sy + 1, ey - 1
+	for caret_id, caret in ipairs(self.carets) do
+		if caret.y >= sy and caret.y <= ey then
+			local x = caret.x
+			local y = caret.y
+			local vy = self:GetVisualLineY(y)
+			if not vy then
+				for y2 = y - 1, 1, -1 do
+					if not lines[y2].fold then
+						x = lines[y2].len
+						y = y2
+						vy = self:GetVisualLineY(y)
+						
+						break
+					end
+				end
+			end
+			
+			local px = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1)))
+			if px >= -self.lineholder.x and px < -self.lineholder.x + self.lineholder_dock:GetWide() - settings.font_size * 2 then return end
+		end
+	end
+	
+	local caret = self.carets[1]
+	if caret.y <= sy then
+		self.scrolltarget = math.Clamp((self:GetVisualLineY(caret.y) - 1) * settings.font_size, 0, self.scrollbar.CanvasSize)
+		self.scrollbar:SetScroll(self.scrolltarget)
+	elseif caret.y > ey then
+		self.scrolltarget = math.Clamp(self:GetVisualLineY(caret.y) * settings.font_size - self.lineholder_dock:GetTall(), 0, self.scrollbar.CanvasSize)
+		self.scrollbar:SetScroll(self.scrolltarget)
+	end
+	
+	local px = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(caret.y), 1, caret.x - 1)))
+	if px < -self.lineholder.x then
+		self.scrolltarget_h = math.Clamp(px, 0, self.scrollbar_h.CanvasSize)
+		self.scrollbar_h:SetScroll(self.scrolltarget_h)
+	elseif px >= -self.lineholder_dock.x + self.lineholder_dock:GetWide() - settings.font_size * 2 then
+		self.scrolltarget_h = math.Clamp(px - self.lineholder_dock:GetWide() + settings.font_size * 2, 0, self.scrollbar_h.CanvasSize)
+		self.scrollbar_h:SetScroll(self.scrolltarget_h)
+	end
 end
 
 function Editor:InsertStr(str)
