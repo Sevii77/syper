@@ -1,13 +1,14 @@
 local settings = Syper.Settings.settings
+local FT = Syper.FILETYPE
 
 ----------------------------------------
 
 local icons = {
-	file = Material("materials/syper/fa-file-alt.png", "noclamp smooth"),
-	file_audio = Material("materials/syper/fa-file-audio.png", "noclamp smooth"),
-	file_code = Material("materials/syper/fa-file-code.png", "noclamp smooth"),
-	file_image = Material("materials/syper/fa-file-image.png", "noclamp smooth"),
-	file_video = Material("materials/syper/fa-file-video.png", "noclamp smooth"),
+	[FT.Generic] = Material("materials/syper/fa-file-alt.png", "noclamp smooth"),
+	[FT.Audio] = Material("materials/syper/fa-file-audio.png", "noclamp smooth"),
+	[FT.Code] = Material("materials/syper/fa-file-code.png", "noclamp smooth"),
+	[FT.Image] = Material("materials/syper/fa-file-image.png", "noclamp smooth"),
+	[FT.Video] = Material("materials/syper/fa-file-video.png", "noclamp smooth"),
 }
 
 local folder = Material("materials/syper/fa-folder.png", "noclamp smooth")
@@ -15,40 +16,6 @@ local folder_open = Material("materials/syper/fa-folder-open.png", "noclamp smoo
 
 local linefold_down = Material("materials/syper/fa-caret-down.png", "noclamp smooth")
 local linefold_right = Material("materials/syper/fa-caret-right.png", "noclamp smooth")
-
--- TODO: move these to settings maby?
-local exts = {
-	txt = "file",
-	
-	png = "file_image",
-	jpg = "file_image",
-	jpeg = "file_image",
-	gif = "file_image",
-	ico = "file_image",
-	
-	mp3 = "file_audio",
-	wav = "file_audio",
-	ogg = "file_audio",
-	
-	mp4 = "file_video",
-	webm = "file_video",
-	
-	lua = "file_code",
-	cpp = "file_code",
-	cs = "file_code",
-	c = "file_code",
-	js = "file_code",
-	rs = "file_code",
-	py = "file_code",
-	java = "file_code",
-	html = "file_code",
-	css = "file_code",
-	sh = "file_code",
-	bat = "file_code",
-	md = "file_code",
-	toml = "file_code",
-	json = "file_code",
-}
 
 ----------------------------------------
 
@@ -178,9 +145,9 @@ end
 
 function Node:GuessIcon()
 	if self.ext then
-		self.icon = icons[exts[self.ext]] or icons.file
+		self.icon = icons[Syper.FILEEXTTYPE[self.ext]] or icons[FT.Generic]
 	else
-		self.icon = icons.file
+		self.icon = icons[FT.Generic]
 	end
 end
 

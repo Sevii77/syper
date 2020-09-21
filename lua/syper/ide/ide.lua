@@ -10,9 +10,11 @@ do
 	add("./tabhandler.lua")
 	add("./tree.lua")
 	add("./editor.lua")
+	add("./html.lua")
 end
 
 local Settings = Syper.Settings
+local FT = Syper.FILETYPE
 
 ----------------------------------------
 
@@ -122,11 +124,6 @@ function IDE:Init()
 			end
 		end
 		
-		local editor = self:Add("SyperEditor")
-		editor:SetIDE(self)
-		-- -- TODO: grab syntax from extension or special folder (expression2/ should be e2 and starfall/ starfall, blablah you get it)
-		-- editor:SetSyntax(node.ext == "json" and "json" or "lua")
-		
 		-- good enough ext grabbing for now
 		local root = node
 		while root.parent do
@@ -138,19 +135,36 @@ function IDE:Init()
 			ext = root.ext_override[ext]
 		end
 		
-		local syntax = "text"
-		for s, v in pairs(Syper.Lexer.lexers) do
-			if v.ext[ext] then
-				syntax = s
-				
-				break
+		local typ = Syper.FILEEXTTYPE[ext]
+		if not typ or typ == FT.Generic or typ == FT.Code then
+			local syntax = "text"
+			for s, v in pairs(Syper.Lexer.lexers) do
+				if v.ext[ext] then
+					syntax = s
+					
+					break
+				end
 			end
+			
+			local editor = self:Add("SyperEditor")
+			editor:SetIDE(self)
+			editor:SetSyntax(syntax)
+			editor:SetPath(node.path, node.root_path)
+			editor:ReloadFile()
+			self:AddTab(node.name, editor)
+		elseif typ == FT.Image then
+			local viewer = self:Add("SyperHTML")
+			viewer:OpenImg(node.path)
+			self:AddTab(node.name, viewer)
+		elseif typ == FT.Video then
+			local viewer = self:Add("SyperHTML")
+			viewer:OpenVideo(node.path)
+			self:AddTab(node.name, viewer)
+		elseif typ == FT.Audio then
+			local viewer = self:Add("SyperHTML")
+			viewer:OpenAudio(node.path)
+			self:AddTab(node.name, viewer)
 		end
-		
-		editor:SetSyntax(syntax)
-		editor:SetPath(node.path, node.root_path)
-		editor:ReloadFile()
-		self:AddTab(node.name, editor)
 	end
 	
 	self.div = self:Add("SyperHDivider")

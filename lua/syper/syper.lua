@@ -10,6 +10,7 @@ do
 	Syper.include = add
 	
 	add("./lib.lua")
+	add("./filetype.lua")
 	add("./token.lua")
 	add("./lexer.lua")
 	add("./mode.lua")
