@@ -1352,7 +1352,7 @@ function Editor:GetViewBounds()
 		end
 	end
 	
-	return s, #lines
+	return s, #lines + (m - vy)
 end
 
 function Editor:GetVisualLineY(y)
