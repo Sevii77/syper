@@ -60,9 +60,10 @@ function Node:Init()
 	self.offset_x = 0
 end
 
-function Node:Setup(tree, name, is_folder)
+function Node:Setup(tree, name, is_folder, parent)
 	self.tree = tree
 	self.name = name
+	self.parent = parent
 	
 	if is_folder then
 		self.is_folder = true
@@ -128,7 +129,7 @@ function Node:AddNode(name, is_folder)
 	if not self.is_folder then return end
 	
 	local node = self.tree.content:Add("SyperTreeNode")
-	node:Setup(self.tree, name, is_folder)
+	node:Setup(self.tree, name, is_folder, self)
 	
 	self.nodes[#self.nodes + 1] = node
 	
@@ -139,32 +140,33 @@ function Node:AddDirectory(path)
 	if not self.is_folder then return end
 	path = string.sub(path, -1, -1) == "/" and path or path .. "/"
 	
-	local files, dirs = file.Find(path .. "*", "DATA")
+	local files, dirs = file.Find(path .. "*", self.root_path)
 	for _, dir in ipairs(dirs) do
 		local n = self:AddNode(dir, true)
 		local p = path .. dir
-		n:SetPath(p)
+		n:SetPath(p, self.root_path)
 		n:AddDirectory(p)
 	end
 	
 	for _, file in ipairs(files) do
 		local n = self:AddNode(file, false)
-		n:SetPath(path .. file)
+		n:SetPath(path .. file, self.root_path)
 		n:GuessIcon()
 	end
 end
 
-function Node:SetPath(path)
+function Node:SetPath(path, root_path)
 	self.path = path
+	self.root_path = root_path or "DATA"
 	self:MarkModified()
 end
 
 function Node:MarkModified()
-	self.last_modified = file.Time(self.path, "DATA")
+	self.last_modified = file.Time(self.path, self.root_path)
 end
 
 function Node:GetExternalModified()
-	local time = file.Time(self.path, "DATA")
+	local time = file.Time(self.path, self.root_path)
 	if time ~= self.last_modified then
 		self:MarkModified()
 		
@@ -222,7 +224,6 @@ function Tree:Init()
 	self.content_dock:Dock(FILL)
 	
 	self.content = self.content_dock:Add("Panel")
-	
 end
 
 function Tree:Paint(w, h)
@@ -338,23 +339,24 @@ function Tree:AddFolder(name)
 	return node
 end
 
-function Tree:AddDirectory(path)
+function Tree:AddDirectory(path, root_path)
 	local name = string.match(path, "/?([^/]+)/?$")
 	path = string.sub(path, -1, -1) == "/" and path or path .. "/"
+	root_path = root_path or "DATA"
 	
 	local node = self:AddFolder(name)
 	
-	local files, dirs = file.Find(path .. "*", "DATA")
+	local files, dirs = file.Find(path .. "*", root_path)
 	for _, dir in ipairs(dirs) do
 		local n = node:AddNode(dir, true)
 		local p = path .. dir
-		n:SetPath(p)
+		n:SetPath(p, root_path)
 		n:AddDirectory(p)
 	end
 	
 	for _, file in ipairs(files) do
 		local n = node:AddNode(file, false)
-		n:SetPath(path .. file)
+		n:SetPath(path .. file, root_path)
 		n:GuessIcon()
 	end
 	

@@ -106,10 +106,11 @@ function IDE:Init()
 	-- TODO: make look better
 	self.filetree = self:Add("SyperTree")
 	self.filetree:AddDirectory("syper/")
-	self.filetree:AddDirectory("luapad/")
-	self.filetree:AddDirectory("starfall/")
+	self.filetree:AddDirectory("addons/syper/", "MOD")
+	self.filetree:AddDirectory("luapad/").ext_override = {txt = "lua"}
+	self.filetree:AddDirectory("starfall/").ext_override = {txt = "lua"}
 	self.filetree:AddDirectory("sf_filedata/")
-	self.filetree:AddDirectory("expression2/")
+	self.filetree:AddDirectory("expression2/").ext_override = {txt = "expression2"}
 	self.filetree:AddDirectory("e2files/")
 	self.filetree.OnNodePress = function(_, node)
 		local tabhandler = self:GetActiveTabHandler()
@@ -123,9 +124,31 @@ function IDE:Init()
 		
 		local editor = self:Add("SyperEditor")
 		editor:SetIDE(self)
-		-- TODO: grab syntax from extension or special folder (expression2/ should be e2 and starfall/ starfall, blablah you get it)
-		editor:SetSyntax(node.ext == "json" and "json" or "lua")
-		editor:SetPath(node.path)
+		-- -- TODO: grab syntax from extension or special folder (expression2/ should be e2 and starfall/ starfall, blablah you get it)
+		-- editor:SetSyntax(node.ext == "json" and "json" or "lua")
+		
+		-- good enough ext grabbing for now
+		local root = node
+		while root.parent do
+			root = root.parent
+		end
+		
+		local ext = node.ext
+		if root.ext_override then
+			ext = root.ext_override[ext]
+		end
+		
+		local syntax = "text"
+		for s, v in pairs(Syper.Lexer.lexers) do
+			if v.ext[ext] then
+				syntax = s
+				
+				break
+			end
+		end
+		
+		editor:SetSyntax(syntax)
+		editor:SetPath(node.path, node.root_path)
 		editor:ReloadFile()
 		self:AddTab(node.name, editor)
 	end

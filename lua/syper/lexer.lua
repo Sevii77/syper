@@ -10,7 +10,13 @@ if CLIENT then
 
 function Lexer.prepareLexer(lexer)
 	for mode, data in pairs(lexer) do
-		if mode ~= "name" then
+		if mode == "ext" then
+			local new = {}
+			for _, v in ipairs(data) do
+				new[v] = true
+			end
+			lexer.ext = new
+		elseif mode ~= "name" then
 			for _, v in ipairs(data) do
 				if v.list then
 					local new = {}

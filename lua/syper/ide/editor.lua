@@ -1448,13 +1448,14 @@ function Editor:Save()
 end
 
 function Editor:ReloadFile()
-	self:SetContent(file.Read(self.path, "DATA"))
+	self:SetContent(file.Read(self.path, self.root_path))
 end
 
-function Editor:SetPath(path)
+function Editor:SetPath(path, root_path)
 	if string.find(path, "[\":]") then return false end
 	
 	self.path = path
+	self.root_path = root_path or "DATA"
 	
 	return true
 end
