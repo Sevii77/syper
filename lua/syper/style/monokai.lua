@@ -3,6 +3,7 @@ local TOKEN = Syper.TOKEN
 return {
 	background        = {r = 39,  g = 40,  b = 34,  a = 255},
 	highlight         = {r = 73,  g = 72,  b = 62,  a = 255},
+	highlight2        = {r = 146, g = 144, b = 140, a = 255},
 	gutter_background = {r = 36,  g = 36,  b = 31,  a = 255},
 	gutter_foreground = {r = 146, g = 144, b = 140, a = 255},
 	fold_background   = {r = 225, g = 220, b = 50,  a = 255},

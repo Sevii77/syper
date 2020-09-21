@@ -54,6 +54,19 @@ local function getRenderString(str, offset)
 	return s
 end
 
+local function getRenderStringSelected(str, offset)
+	local tabsize = settings.tab_size
+	local s = ""
+	offset = offset or 0
+	
+	for i = 1, len(str) do
+		local c = sub(str, i, i)
+		s = s .. (c == "\t" and string.rep("-", tabsize - ((len(s) + offset) % tabsize)) or (c == " " and "·" or " "))
+	end
+	
+	return s
+end
+
 local function renderToRealPos(str, pos)
 	local tabsize = settings.tab_size
 	local l = 0
@@ -725,6 +738,7 @@ function Editor:Init()
 		-- caret select
 		surface.SetFont("syper_syntax_1")
 		surface.SetDrawColor(settings.style_data.highlight)
+		surface.SetTextColor(settings.style_data.highlight2)
 		
 		local lines = self.content_data.lines
 		for _, caret in ipairs(self.carets) do
@@ -742,15 +756,21 @@ function Editor:Init()
 					local ry = self:GetVisualLineY(sy)
 					if ry then
 						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-						local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx, ex)))
+						local str = sub(lines[sy].str, sx, ex)
+						local tw = surface.GetTextSize(getRenderString(str))
 						surface.DrawRect(offset + 1, ry * th - th + 1, tw - 2, th - 2)
+						surface.SetTextPos(offset, ry * th - th)
+						surface.DrawText(getRenderStringSelected(str))
 					end
 				else
 					local ry = self:GetVisualLineY(sy)
 					if ry then
 						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-						local tw = surface.GetTextSize(getRenderString(sub(lines[sy].str, sx))) + th / 3
+						local str = sub(lines[sy].str, sx)
+						local tw = surface.GetTextSize(getRenderString(str)) + th / 3
 						surface.DrawRect(offset + 1, ry * th - th + 1, tw - 1, th - 1)
+						surface.SetTextPos(offset, ry * th - th)
+						surface.DrawText(getRenderStringSelected(str))
 					end
 					
 					for y = sy + 1, ey - 1 do
@@ -758,13 +778,18 @@ function Editor:Init()
 						if ry then
 							local tw = surface.GetTextSize(getRenderString(lines[y].str)) + th / 3
 							surface.DrawRect(0, ry * th - th, tw, th)
+							surface.SetTextPos(0, ry * th - th)
+							surface.DrawText(getRenderStringSelected(lines[y].str))
 						end
 					end
 					
 					local ry = self:GetVisualLineY(ey)
 					if ry then
-						local tw = surface.GetTextSize(getRenderString(sub(lines[ey].str, 1, ex)))
+						local str = sub(lines[ey].str, 1, ex)
+						local tw = surface.GetTextSize(getRenderString(str))
 						surface.DrawRect(0, ry * th - th, tw - 1, th - 1)
+						surface.SetTextPos(0, ry * th - th)
+						surface.DrawText(getRenderStringSelected(str))
 					end
 				end
 			end
