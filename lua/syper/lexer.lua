@@ -305,6 +305,7 @@ function ContentTable:RebuildTokenPairs()
 	local scope_origin = {}
 	for y, line in ipairs(self.lines) do
 		line.foldable = false
+		line.indent_level = indent_level
 		
 		local indent_level_sum = 0
 		local indent_level_changed = false
@@ -331,8 +332,6 @@ function ContentTable:RebuildTokenPairs()
 					t.foldable = y > pos.y + 1
 					token.pair = pos
 					
-					indent_level_sum = indent_level_sum - 1
-					indent_level_changed = true
 					scope_origin[#scope_origin] = nil
 				else
 					-- mark token error
@@ -346,9 +345,19 @@ function ContentTable:RebuildTokenPairs()
 					scopes[k][#scopes[k] + 1] = {x = x, y = y}
 				end
 				
+				scope_origin[#scope_origin + 1] = y
+			end
+			
+			local indent = self.mode.indent[token.str]
+			if indent = indent and not indent[token.token] then
 				indent_level_sum = indent_level_sum + 1
 				indent_level_changed = true
-				scope_origin[#scope_origin + 1] = y
+			end
+			
+			local outdent = self.mode.outdent[token.str]
+			if outdent = outdent and not outdent[token.token] then
+				indent_level_sum = indent_level_sum - 1
+				indent_level_changed = true
 			end
 			
 			if token.token_override ~= token_override then
@@ -358,16 +367,18 @@ function ContentTable:RebuildTokenPairs()
 			token.token_override = token_override
 		end
 		
-		if indent_level_sum <= (indent_level_changed and 0 or -1) then
-			indent_level = indent_level - 1
+		local scope_origin = scope_origin[#scope_origin] or 1
+		if indent_level_sum ~= 0 then
+			indent_level = indent_level + (indent_level_sum > 0 and 1 or -1)
+			
+			if indent_level_sum < 0 then
+				line.indent_level = indent_level
+			end
+		elseif indent_level_changed and scope_origin == y then
+			line.indent_level = indent_level - 1
 		end
 		
-		line.indent_level = indent_level
-		line.scope_origin = scope_origin[#scope_origin] or 1
-		
-		if indent_level_sum >= (indent_level_changed and 0 or 1) then
-			indent_level = indent_level + 1
-		end
+		line.scope_origin = scope_origin
 	end
 	
 	-- mark all unfinished error

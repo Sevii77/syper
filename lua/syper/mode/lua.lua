@@ -5,12 +5,11 @@ return {
 	indent = {
 		{"function", ignore},
 		{"then", ignore},
-		{"elseif", ignore},
 		{"else", ignore},
 		{"do", ignore},
 		{"repeat", ignore},
 		{"{", ignore},
-		{"%(", ignore},
+		{"(", ignore},
 	},
 	
 	outdent = {
@@ -19,7 +18,7 @@ return {
 		{"end", ignore},
 		{"until", ignore},
 		{"}", ignore},
-		{"%)", ignore},
+		{")", ignore},
 	},
 	
 	pair = {

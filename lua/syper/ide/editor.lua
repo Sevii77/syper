@@ -292,7 +292,7 @@ function Act.reindent_file(self)
 				cur_level = cur_level + 1
 			end
 		end
-		
+		print(cur_level, line.indent_level)
 		if cur_level > line.indent_level then
 			self:RemoveStrAt(1, y, (cur_level - line.indent_level) * tab_strsize, true)
 		elseif cur_level < line.indent_level then
@@ -1183,8 +1183,8 @@ function Editor:OnTextChanged()
 			local lines = self.content_data.lines
 			for caret_id, caret in ipairs(self.carets) do
 				local str = string.match(lines[caret.y].str, "%s*(%a+)[\n%z]")
-				local outdent = self.mode.outdent[str]
-				if outdent then
+				local token = self:GetToken(caret.x - 1, caret.y)
+				if self.mode.outdent[str] and not self.mode.outdent[str][token.mode] then
 					local level, level_origin = 0, 0
 					
 					local s = 1
