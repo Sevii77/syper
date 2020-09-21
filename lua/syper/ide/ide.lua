@@ -132,7 +132,7 @@ function IDE:Init()
 		
 		local ext = node.ext
 		if root.ext_override then
-			ext = root.ext_override[ext]
+			ext = root.ext_override[ext] or ext
 		end
 		
 		local typ = Syper.FILEEXTTYPE[ext]
