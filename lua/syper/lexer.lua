@@ -349,13 +349,13 @@ function ContentTable:RebuildTokenPairs()
 			end
 			
 			local indent = self.mode.indent[token.str]
-			if indent = indent and not indent[token.token] then
+			if indent and not indent[token.token] then
 				indent_level_sum = indent_level_sum + 1
 				indent_level_changed = true
 			end
 			
 			local outdent = self.mode.outdent[token.str]
-			if outdent = outdent and not outdent[token.token] then
+			if outdent and not outdent[token.token] then
 				indent_level_sum = indent_level_sum - 1
 				indent_level_changed = true
 			end
