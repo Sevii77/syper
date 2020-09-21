@@ -208,6 +208,11 @@ function Settings.rebuildStyle()
 		font = Settings.settings.font,
 		size = Settings.settings.font_size - 4
 	})
+	
+	surface.CreateFont("syper_ide", {
+		font = Settings.settings.font,
+		size = 15
+	})
 end
 
 function Settings.lookupSetting(name)
@@ -215,7 +220,15 @@ function Settings.lookupSetting(name)
 end
 
 function Settings.loadSettings()
-	Settings.settings = Syper.jsonToTable(include("syper/default_settings.lua"))
+	-- Settings.settings = Syper.jsonToTable(include("syper/default_settings.lua"))
+	for k, _ in pairs(Settings.settings) do
+		Settings.settings[k] = nil
+	end
+	
+	for k, v in pairs(Syper.jsonToTable(include("syper/default_settings.lua"))) do
+		Settings.settings[k] = v
+	end
+	
 	if not pcall(function()
 		for k, v in pairs(Syper.jsonToTable(file.Read("syper/settings.json", "DATA"))) do
 			Settings.settings[k] = v

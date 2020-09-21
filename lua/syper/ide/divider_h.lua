@@ -1,7 +1,11 @@
+local settings = Syper.Settings.settings
+
+----------------------------------------
+
 local Divider = {}
 
 function Divider:Init()
-	self.div_size = 10
+	self.div_size = 6
 	self.div_pos = 0
 	self.left = nil
 	self.right = nil
@@ -9,15 +13,14 @@ function Divider:Init()
 	self.holding = false
 	self.hold_offset = 0
 	
+	self.min_size = 50
 	self.stick = 1
-	
-	self.clr = {r = 0, g = 0, b = 0, a = 255}
 	
 	self:SetCursor("sizewe")
 end
 
 function Divider:Paint(w, h)
-	surface.SetDrawColor(self.clr)
+	surface.SetDrawColor(settings.style_data.ide_background)
 	surface.DrawRect(self.div_pos, 0, self.div_size, h)
 end
 
@@ -35,6 +38,8 @@ function Divider:PerformLayout(w, h)
 		elseif self.stick == 2 then
 			self.div_pos = self.div_pos - div
 		end
+		
+		self.div_pos = math.Clamp(self.div_pos, self.min_size, w - self.min_size - self.div_size)
 	end
 	self.last_w = w
 	

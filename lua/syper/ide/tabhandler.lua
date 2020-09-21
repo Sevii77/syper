@@ -1,3 +1,7 @@
+local settings = Syper.Settings.settings
+
+----------------------------------------
+
 local Tab = {}
 
 function Tab:Init()
@@ -11,6 +15,7 @@ function Tab:Setup(handler, name, panel)
 	self.handler = handler
 	self.name = name
 	self.panel = panel
+	self.width = handler.tab_size
 end
 
 function Tab:OnMousePressed(key)
@@ -26,23 +31,40 @@ end
 
 function Tab:Paint(w, h)
 	if self.active then
-		surface.SetDrawColor(self.handler.tab_clr_active)
-		surface.DrawRect(0, 0, w, h)
+		draw.NoTexture()
+		surface.SetDrawColor(settings.style_data.gutter_background)
+		surface.DrawPoly({
+			{x = 0, y = h},
+			{x = 5, y = 0},
+			{x = w - 5, y = 0},
+			{x = w, y = h},
+		})
+		
+		surface.SetTextColor(settings.style_data.ide_foreground)
 	else
-		surface.SetDrawColor(self.handler.tab_clr)
+		surface.SetDrawColor(settings.style_data.ide_background)
 		surface.DrawRect(0, 0, w, h)
 		
-		surface.SetDrawColor(self.handler.tab_clr_active)
-		surface.DrawRect(0, 5, 1, h - 10)
-		surface.DrawRect(w - 1, 5, 1, h - 10)
+		local prev = self.handler.tabs[self.handler.active_tab - 1]
+		if prev and prev.tab ~= self then
+			surface.SetDrawColor(settings.style_data.gutter_background)
+			surface.DrawRect(w - 1, 3, 1, h - 6)
+		end
+		
+		surface.SetTextColor(settings.style_data.ide_disabled)
 	end
 	
-	surface.SetTextColor(self.handler.tab_clr_text)
 	surface.SetFont(self.handler.tab_font)
 	local tw, th = surface.GetTextSize(self.name)
 	local o = (h - th) / 2
-	surface.SetTextPos(o, o)
+	surface.SetTextPos(5 + o, o)
 	surface.DrawText(self.name)
+	
+	local dw = math.max(self.handler.tab_size, tw + 10 + o * 2)
+	if self.width ~= dw then
+		self.width = dw
+		self:InvalidateParent()
+	end
 end
 
 function Tab:SetActive(state)
@@ -57,13 +79,9 @@ local TabHandler = {}
 
 function TabHandler:Init()
 	self.bar_size = 25
-	self.bar_clr = {r = 0, g = 0, b = 0, a = 255}
 	
 	self.tab_size = 100
-	self.tab_clr = {r = 32, g = 32, b = 32, a = 255}
-	self.tab_clr_active = {r = 64, g = 64, b = 64, a = 255}
-	self.tab_clr_text = {r = 255, g = 255, b = 255, a = 255}
-	self.tab_font = "DermaDefault"
+	self.tab_font = "syper_ide"
 	
 	self.scroll_mul = 20
 	self.scroll = 0
@@ -73,25 +91,34 @@ function TabHandler:Init()
 end
 
 function TabHandler:Paint(w, h)
-	surface.SetDrawColor(self.bar_clr)
-	surface.DrawRect(0, 0, w, self.bar_size - 2)
+	surface.SetDrawColor(settings.style_data.ide_background)
+	surface.DrawRect(0, 0, w, self.bar_size - 4)
 	
-	surface.SetDrawColor(self.tab_clr_active)
-	surface.DrawRect(0, self.bar_size - 2, w, 2)
+	surface.SetDrawColor(settings.style_data.gutter_background)
+	surface.DrawRect(0, self.bar_size - 4, w, 4)
 end
 
 function TabHandler:ScrollBounds(w)
-	self.scroll = math.Clamp(self.scroll, 0, math.max(0, #self.tabs * self.tab_size - w))
+	-- local max = #self.tabs * self.tab_size - w
+	local max = -w
+	for i, tab in ipairs(self.tabs) do
+		max = max + tab.tab.width
+	end
+	
+	self.scroll = math.Clamp(self.scroll, 0, math.max(0, max))
 end
 
 function TabHandler:PerformLayout(w, h)
 	self:ScrollBounds(w)
 	
+	local offset = 0
 	for i, tab in ipairs(self.tabs) do
-		local x = math.Clamp((i - 1) * self.tab_size - self.scroll, (i - 1) * 3, w - self.tab_size - (#self.tabs - i) * 3)
+		local x = math.Clamp(offset - self.scroll, 0, w - tab.tab.width)
 		tab.tab:SetPos(x, 0)
-		tab.tab:SetSize(self.tab_size, self.bar_size - 2)
-		tab.tab:SetZPos(-math.abs(w / 2 - (((i - 1) * self.tab_size - self.scroll) + self.tab_size / 2)))
+		tab.tab:SetSize(tab.tab.width, self.bar_size - 4)
+		tab.tab:SetZPos(tab.tab.active and 1000 or -math.abs(w / 2 - (offset - self.scroll) + tab.tab.width / 2))
+		
+		offset = offset + tab.tab.width
 	end
 	
 	self:PerformLayoutTab(self:GetActivePanel(), w, h)

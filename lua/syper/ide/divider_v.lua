@@ -1,7 +1,11 @@
+local settings = Syper.Settings.settings
+
+----------------------------------------
+
 local Divider = {}
 
 function Divider:Init()
-	self.div_size = 10
+	self.div_size = 6
 	self.div_pos = 0
 	self.bottom = nil
 	self.top = nil
@@ -11,13 +15,11 @@ function Divider:Init()
 	
 	self.stick = 1
 	
-	self.clr = {r = 0, g = 0, b = 0, a = 255}
-	
 	self:SetCursor("sizens")
 end
 
 function Divider:Paint(w, h)
-	surface.SetDrawColor(self.clr)
+	surface.SetDrawColor(settings.style_data.ide_background)
 	surface.DrawRect(0, self.div_pos, w, self.div_size)
 end
 

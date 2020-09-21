@@ -1,4 +1,6 @@
-local Settings = Syper.Settings
+local settings = Syper.Settings.settings
+
+----------------------------------------
 
 local icons = {
 	file = Material("materials/syper/fa-file-alt.png", "noclamp smooth"),
@@ -45,6 +47,7 @@ local exts = {
 	bat = "file_code",
 	md = "file_code",
 	toml = "file_code",
+	json = "file_code",
 }
 
 ----------------------------------------
@@ -72,11 +75,13 @@ end
 
 function Node:Paint(w, h)
 	if self.selected then
-		surface.SetDrawColor(self.tree.clr_selected)
+		-- surface.SetDrawColor(self.tree.clr_selected)
+		surface.SetDrawColor(settings.style_data.gutter_foreground)
 		surface.DrawRect(0, 0, w, h)
 	end
 	
-	surface.SetDrawColor(self.tree.clr_icon)
+	local clr = self.selected and settings.style_data.ide_foreground or settings.style_data.ide_disabled
+	surface.SetDrawColor(clr)
 	
 	if self.is_folder then
 		surface.SetMaterial(self.expanded and linefold_down or linefold_right)
@@ -93,7 +98,7 @@ function Node:Paint(w, h)
 		surface.DrawTexturedRect(self.offset_x + h - 2, 4, h - 8, h - 8)
 	end
 	
-	surface.SetTextColor(self.tree.clr_text)
+	surface.SetTextColor(clr)
 	surface.SetFont(self.tree.font)
 	local tw, th = surface.GetTextSize(self.name)
 	surface.SetTextPos(self.offset_x + h * 2 - 6, (h - th) / 2)
@@ -194,11 +199,7 @@ function Tree:Init()
 	self.node_size = 20
 	self.last_system_focus = system.HasFocus()
 	
-	self.clr = {r = 0, g = 0, b = 0, a = 255}
-	self.clr_selected = {r = 64, g = 64, b = 64, a = 255}
-	self.clr_icon = {r = 128, g = 128, b = 128, a = 255}
-	self.clr_text = {r = 255, g = 255, b = 255, a = 255}
-	self.font = "DermaDefault"
+	self.font = "syper_ide"
 	
 	self.scrolltarget = 0
 	self.scrollbar = self:Add("DVScrollBar")
@@ -211,10 +212,10 @@ function Tree:Init()
 		self:DoScroll((y > self.scrollbar.btnGrip.y and 1 or -1) * self.content_dock:GetTall())
 	end
 	self.scrollbar.Paint = function(_, w, h)
-		draw.RoundedBox(4, 3, 3, w - 6, h - 6, Settings.settings.style_data.highlight)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.highlight)
 	end
 	self.scrollbar.btnGrip.Paint = function(_, w, h)
-		draw.RoundedBox(4, 3, 3, w - 6, h - 6, Settings.settings.style_data.gutter_foreground)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.gutter_foreground)
 	end
 	
 	self.content_dock = self:Add("Panel")
@@ -225,7 +226,7 @@ function Tree:Init()
 end
 
 function Tree:Paint(w, h)
-	surface.SetDrawColor(self.clr)
+	surface.SetDrawColor(settings.style_data.ide_background)
 	surface.DrawRect(0, 0, w, h)
 end
 
@@ -276,8 +277,8 @@ function Tree:PerformLayout(w, h)
 	end
 	
 	-- scrollbar
-	self.content:SetSize(w - 12, offset_y)
 	self.scrollbar:SetUp(h, offset_y)
+	self.content:SetSize(w - (self.scrollbar.Enabled and 12 or 0), offset_y)
 end
 
 function Tree:OnMouseWheeled(delta, horizontal)
@@ -286,13 +287,13 @@ function Tree:OnMouseWheeled(delta, horizontal)
 	if horizontal then
 		-- self:DoScrollH(-delta * settings.font_size * settings.scroll_multiplier)
 	else
-		self:DoScroll(-delta * Settings.settings.font_size * Settings.settings.scroll_multiplier)
+		self:DoScroll(-delta * settings.font_size * settings.scroll_multiplier)
 	end
 end
 
 
 function Tree:DoScroll(delta)
-	local speed = Settings.settings.scroll_speed
+	local speed = settings.scroll_speed
 	self.scrolltarget = math.Clamp(self.scrolltarget + delta, 0, self.scrollbar.CanvasSize)
 	if speed == 0 then
 		self.scrollbar:SetScroll(self.scrolltarget)
