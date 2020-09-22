@@ -1,6 +1,7 @@
 return [=[{
 	// IDE stuff
 	"ctrl+s": {"act": "save"},
+	"ctrl+shift+s": {"act": "save", "args": [true]},
 	"ctrl+g": {"act": "command_overlay", "args": [":"]},
 	
 	"ctrl+pageup": {"act": "focus", "args": ["prev"]},

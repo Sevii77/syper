@@ -11,6 +11,7 @@ do
 	add("./tree.lua")
 	add("./editor.lua")
 	add("./html.lua")
+	add("./browser.lua")
 end
 
 local Settings = Syper.Settings
@@ -20,13 +21,44 @@ local FT = Syper.FILETYPE
 
 local Act = {}
 
-function Act.save(self)
+function Act.save(self, as)
 	local panel = vgui.GetKeyboardFocus()
-	if not panel or not IsValid(panel) then return end
+	if not panel or not IsValid(panel) or panel:GetName() ~= "SyperEditor" then return end
 	
-	if panel:GetName() == "SyperEditor" then
-		if not panel:Save() then
-			print("TODO: poof save panel")
+	if as then
+		local save_panel = vgui.Create("SyperBrowser")
+		save_panel:SetSize(480, 360)
+		save_panel:MakePopup()
+		
+		if panel.path then
+			save_panel:SetPath(panel.path)
+		else
+			save_panel:SetPath("/")
+		end
+		
+		save_panel.OnConfirm = function(_, path)
+			panel:SetPath(path, panel.root_path)
+			panel:Save()
+		end
+		
+		return
+	end
+	
+	local saved, err = panel:Save()
+	if not saved then
+		local save_panel = vgui.Create("SyperBrowser")
+		save_panel:SetSize(480, 360)
+		save_panel:MakePopup()
+		
+		if err == 4 then
+			save_panel:SetPath(panel.path)
+		else
+			save_panel:SetPath("/")
+		end
+		
+		save_panel.OnConfirm = function(_, path)
+			panel:SetPath(path, panel.root_path)
+			panel:Save()
 		end
 	end
 end
