@@ -9,6 +9,7 @@ return {
 	fold_background   = {r = 225, g = 220, b = 50,  a = 255},
 	fold_foreground   = {r = 39,  g = 40,  b = 34,  a = 255},
 	
+	ide_ui            = {r = 47,  g = 52,  b = 63,  a = 255},
 	ide_background    = {r = 25,  g = 25,  b = 21,  a = 255},
 	ide_foreground    = {r = 248, g = 248, b = 242, a = 255},
 	ide_disabled      = {r = 146, g = 144, b = 140, a = 255},

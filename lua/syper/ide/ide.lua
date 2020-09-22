@@ -166,7 +166,7 @@ function IDE:Init()
 	end
 	
 	self.tabhandler.OnTabPress = function(_, tab)
-		if not tab.panel.root_path or not tab.panel.path then
+		if not tab or not tab.panel.root_path or not tab.panel.path then
 			self.filetree:Select(nil, true)
 			
 			return
@@ -193,10 +193,9 @@ function IDE:Init()
 	file:AddOption("New", function()
 		local editor = self:Add("SyperEditor")
 		editor:SetIDE(self)
-		editor:SetSyntax("lua")
-		editor:SetContent("-- Very empty in here")
-		self:AddTab("untitled_untitled", editor)
-		-- self.tabhandler:AddTab("untitled", editor, self.tabhandler:GetActive() + 1)
+		editor:SetSyntax("text")
+		editor:SetContent("")
+		self:AddTab("untitled", editor)
 	end)
 	file:AddOption("Test", function()
 		local e1 = self:Add("SyperEditor")
@@ -232,7 +231,6 @@ function IDE:Init()
 		div:SetBottom(div2)
 		
 		self:AddTab("Test", div)
-		-- self.tabhandler:AddTab("Test", div, self.tabhandler:GetActive() + 1)
 		div:CenterDiv()
 		div1:CenterDiv()
 		div2:CenterDiv()
@@ -259,7 +257,6 @@ function IDE:Init()
 		div:SetLeft(def)
 		div:SetRight(conf)
 		self:AddTab("Keybinds", div)
-		-- self.tabhandler:AddTab("Keybinds", div, self.tabhandler:GetActive() + 1)
 		div:CenterDiv()
 	end)
 	config:AddOption("Settings", function()
@@ -282,9 +279,15 @@ function IDE:Init()
 		div:SetLeft(def)
 		div:SetRight(conf)
 		self:AddTab("Settings", div)
-		-- self.tabhandler:AddTab("Settings", div, self.tabhandler:GetActive() + 1)
 		div:CenterDiv()
 	end)
+end
+
+function IDE:Paint(w, h)
+	surface.SetDrawColor(Settings.settings.style_data.ide_ui)
+	surface.DrawRect(0, 0, w, h)
+	
+	return true
 end
 
 function IDE:OnKeyCodeTyped(key)
@@ -347,12 +350,4 @@ function Syper.OpenIDE()
 	ide:SetSize(1500, 800)
 	-- ide:Center()
 	ide:MakePopup()
-	
-	for i = 1, 8 do
-		local editor = ide:Add("SyperEditor")
-		editor:SetIDE(ide)
-		editor:SetSyntax("lua")
-		editor:SetContent("-- editor " .. i)
-		ide.tabhandler:AddTab("editor " .. i, editor)
-	end
 end

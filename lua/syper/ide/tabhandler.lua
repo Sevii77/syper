@@ -19,12 +19,41 @@ function Tab:Setup(handler, name, panel)
 end
 
 function Tab:OnMousePressed(key)
-	if key ~= MOUSE_LEFT then return end
-	
-	self.handler:SetActivePanel(self.panel)
-	
-	if self.handler.OnTabPress then
-		self.handler:OnTabPress(self)
+	if key == MOUSE_LEFT then
+		self.handler:SetActivePanel(self.panel)
+		
+		if self.handler.OnTabPress then
+			self.handler:OnTabPress(self)
+		end
+	elseif key == MOUSE_RIGHT then
+		-- TODO: make close check if it should prompt save first
+		-- TODO: make not look shit
+		local menu = DermaMenu()
+		menu:AddOption("Close", function()
+			self.handler:RemoveTab(self.handler:GetIndex(self.panel))
+		end)
+		menu:AddOption("Close Others", function()
+			local s = self.handler:GetIndex(self.panel) + 1
+			for _ = s, #self.handler.tabs do
+				self.handler:RemoveTab(s)
+			end
+			
+			for _ = 1, #self.handler.tabs - 1 do
+				self.handler:RemoveTab(1)
+			end
+		end)
+		menu:AddOption("Close To Right", function()
+			local s = self.handler:GetIndex(self.panel) + 1
+			for _ = s, #self.handler.tabs do
+				self.handler:RemoveTab(s)
+			end
+		end)
+		menu:AddOption("Close To Left", function()
+			for _ = 1, self.handler:GetIndex(self.panel) - 1 do
+				self.handler:RemoveTab(1)
+			end
+		end)
+		menu:Open()
 	end
 end
 
@@ -100,6 +129,9 @@ function TabHandler:Paint(w, h)
 	
 	surface.SetDrawColor(settings.style_data.gutter_background)
 	surface.DrawRect(0, self.bar_size - 4, w, 4)
+	
+	surface.SetDrawColor(settings.style_data.background)
+	surface.DrawRect(0, self.bar_size, w, h - self.bar_size)
 end
 
 function TabHandler:ScrollBounds(w)
@@ -182,15 +214,22 @@ function TabHandler:AddTab(name, panel, index)
 	self:SetActive(index)
 end
 
-function TabHandler:RemoveTab(index)
+function TabHandler:RemoveTab(index, keep_panel)
 	local tab = self.tabs[index]
 	tab.tab:Remove()
-	tab.panel:Remove()
+	
+	if not keep_panel then
+		tab.panel:Remove()
+	end
 	
 	table.remove(self.tabs, index)
 	
 	if tab.tab.active then
 		self:SetActive(math.max(1, index - 1))
+		
+		if self.OnTabPress then
+			self:OnTabPress(self.tabs[self.active_tab])
+		end
 	end
 end
 
