@@ -669,7 +669,81 @@ function Editor:Init()
 	self:SetAllowNonAsciiCharacters(true)
 	self:SetMultiline(true)
 	
-	self.gutter = self:Add("panel")
+	self.infobar = self:Add("Panel")
+	self.infobar:SetHeight(20)
+	self.infobar:Dock(BOTTOM)
+	self.infobar.Paint = function(_, w, h)
+		surface.SetDrawColor(settings.style_data.ide_background)
+		surface.DrawRect(0, 4, w, h - 4)
+		
+		surface.SetDrawColor(settings.style_data.gutter_background)
+		surface.DrawRect(0, 0, w, 4)
+		
+		surface.SetFont("syper_ide")
+		
+		local str = #self.carets == 1 and string.format("Line %s, Column %s", self.carets[1].y, realToRenderPos(self.content_data:GetLineStr(self.carets[1].y), self.carets[1].x)) or (#self.carets .. " Carets")
+		if self:HasSelection() then
+			local count = 0
+			for caret_id, caret in ipairs(self.carets) do
+				if caret.select_x then
+					local sx, sy = caret.x, caret.y
+					local ex, ey = caret.select_x, caret.select_y
+					
+					if ey < sy or (ex < sx and sy == ey) then
+						sx, sy, ex, ey = ex, ey, sx, sy
+					end
+					
+					if sy ~= ey then
+						count = count + self.content_data:GetLineLength(sy) - sx + 1
+						count = count + ex - 1
+					else
+						count = count + ex - sx
+					end
+					
+					for y = sy + 1, ey - 1 do
+						count = count + self.content_data:GetLineLength(y)
+					end
+				end
+			end
+			
+			if count > 0 then
+				str = str .. ", " .. count .. " Selected Characters"
+			end
+		end
+		local tw, th = surface.GetTextSize(str)
+		
+		surface.SetTextColor(settings.style_data.ide_disabled)
+		surface.SetTextPos((h - th) / 2 + 2, h / 2 - th / 2 + 2)
+		surface.DrawText(str)
+	end
+	
+	self.syntax_button = self.infobar:Add("DButton")
+	self.syntax_button:SetWide(100)
+	self.syntax_button:Dock(RIGHT)
+	self.syntax_button.DoClick = function(_)
+		-- TODO: make look better
+		local menu = DermaMenu()
+		for syntax, lexer in pairs(Lexer.lexers) do
+			menu:AddOption(lexer.name, function()
+				self:SetSyntax(syntax)
+			end)
+		end
+		menu:Open()
+	end
+	self.syntax_button.Paint = function(_, w, h)
+		surface.SetFont("syper_ide")
+		
+		local str = _:GetText()
+		local tw, th = surface.GetTextSize(str)
+		
+		surface.SetTextColor(settings.style_data.ide_disabled)
+		surface.SetTextPos(w / 2 - tw / 2, h / 2 - th / 2 + 2)
+		surface.DrawText(str)
+		
+		return true
+	end
+	
+	self.gutter = self:Add("Panel")
 	self.gutter:Dock(LEFT)
 	self.gutter.OnMousePressed = function(_, key)
 		if key ~= MOUSE_LEFT then return end
@@ -943,9 +1017,11 @@ function Editor:Init()
 		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.gutter_foreground)
 	end
 	
+	self.content_data = Lexer.createContentTable(self.lexer, self.mode)
+	self.content_data:ModifyLine(1, "\n")
+	
 	self:SetCursor("beam")
 	self:SetSyntax("text")
-	self:Rebuild()
 	self:AddCaret(1, 1)
 	
 	editors[self] = true
@@ -972,17 +1048,6 @@ function Editor:Paint(w, h)
 	surface.DrawRect(0, 0, w, h)
 	
 	return true
-end
-
-function Editor:PaintOver(w, h)
-	surface.SetTextColor(255, 255, 255, 255)
-	surface.SetFont("syper_syntax_1")
-	
-	local th = settings.font_size
-	for caret_id, caret in ipairs(self.carets) do
-		surface.SetTextPos(self.gutter_size, h - th * caret_id)
-		surface.DrawText(string.format("%s,%s | %s,%s", caret.x, caret.y, caret.select_x, caret.select_y))
-	end
 end
 
 function Editor:OnKeyCodeTyped(key)
@@ -1229,19 +1294,19 @@ function Editor:PerformLayout(w, h)
 	
 	if self.scrollbar_h.Enabled then
 		self.lineholder_dock:SetPos(self.gutter_size, 0)
-		self.lineholder_dock:SetSize(w - self.gutter_size - 12, h - 12)
+		self.lineholder_dock:SetSize(w - self.gutter_size - 12, h - 32)
 		
 		self.scrollbar:SetPos(w - 12, 0)
-		self.scrollbar:SetSize(12, h - 12)
+		self.scrollbar:SetSize(12, h - 32)
 		
-		self.scrollbar_h:SetPos(self.gutter_size, h - 12)
+		self.scrollbar_h:SetPos(self.gutter_size, h - 32)
 		self.scrollbar_h:SetSize(w - self.gutter_size - 12, 12)
 	else
 		self.lineholder_dock:SetPos(self.gutter_size, 0)
-		self.lineholder_dock:SetSize(w - self.gutter_size - 12, h)
+		self.lineholder_dock:SetSize(w - self.gutter_size - 12, h - 20)
 		
 		self.scrollbar:SetPos(w - 12)
-		self.scrollbar:SetSize(12, h)
+		self.scrollbar:SetSize(12, h - 20)
 	end
 end
 
@@ -1528,8 +1593,11 @@ end
 function Editor:SetSyntax(syntax)
 	self.lexer = Lexer.lexers[syntax]
 	self.mode = Mode.modes[syntax]
+	self.syntax_button:SetText(Lexer.lexers[syntax].name)
+	
+	local content = self:GetContentStr()
 	self.content_data = Lexer.createContentTable(self.lexer, self.mode)
-	self.content_data:ModifyLine(1, "\n")
+	self:SetContent(content)
 end
 
 function Editor:SetEditable(state)
