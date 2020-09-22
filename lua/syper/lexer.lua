@@ -373,7 +373,7 @@ function ContentTable:RebuildTokenPairs()
 			token.token_override = token_override
 		end
 		
-		local scope_origin = scope_origin[#scope_origin] or 1
+		local scope_origin = scope_origin[#scope_origin] or 0
 		if indent_level_sum ~= 0 then
 			indent_level = indent_level + (indent_level_sum > 0 and 1 or -1)
 			

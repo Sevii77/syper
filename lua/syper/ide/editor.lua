@@ -269,10 +269,12 @@ function Act.outdent(self)
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
 				if string.sub(lines[y].str, 1, tab_strsize) == tab_str then
 					self:RemoveStrAt(1, y, tab_strsize, true)
+					
+					if y == caret.select_y then
+						caret.select_x = caret.select_x - tab_strsize
+					end
 				end
 			end
-			
-			caret.select_x = caret.select_x - tab_strsize
 		else
 			self:InsertStrAt(caret.x, caret.y, getTabStr(caret.x, lines[caret.y].str), true)
 		end
@@ -292,7 +294,7 @@ function Act.reindent_file(self)
 				cur_level = cur_level + 1
 			end
 		end
-		print(cur_level, line.indent_level)
+		
 		if cur_level > line.indent_level then
 			self:RemoveStrAt(1, y, (cur_level - line.indent_level) * tab_strsize, true)
 		elseif cur_level < line.indent_level then
