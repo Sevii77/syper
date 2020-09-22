@@ -102,10 +102,8 @@ function IDE:Init()
 	self.bar = self:Add("DMenuBar")
 	self.bar:Dock(TOP)
 	
-	-- TODO: make look better
 	self.tabhandler = self:Add("SyperTabHandler")
 	
-	-- TODO: make look better
 	self.filetree = self:Add("SyperTree")
 	self.filetree:AddDirectory("syper/")
 	self.filetree:AddDirectory("addons/syper/", "MOD")
@@ -164,6 +162,24 @@ function IDE:Init()
 			local viewer = self:Add("SyperHTML")
 			viewer:OpenAudio(node.path)
 			self:AddTab(node.name, viewer)
+		end
+	end
+	
+	self.tabhandler.OnTabPress = function(_, tab)
+		if not tab.panel.root_path or not tab.panel.path then
+			self.filetree:Select(nil, true)
+			
+			return
+		end
+		
+		local node = self.filetree.nodes_lookup[tab.panel.root_path][tab.panel.path]
+		if not self.filetree.selected[node] then
+			self.filetree:Select(node, true)
+		end
+		
+		while node do
+			node:Expand(true)
+			node = node.parent
 		end
 	end
 	
@@ -316,6 +332,8 @@ end
 function IDE:AddTab(name, panel)
 	local tabhandler = self:GetActiveTabHandler()
 	tabhandler:AddTab(name, panel, tabhandler:GetActive() + 1)
+	
+	self.filetree:Select((panel.root_path and panel.path) and self.filetree.nodes_lookup[panel.root_path][panel.path], true)
 end
 
 vgui.Register("SyperIDE", IDE, "DFrame")

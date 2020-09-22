@@ -43,7 +43,6 @@ end
 
 function Node:Paint(w, h)
 	if self.selected then
-		-- surface.SetDrawColor(self.tree.clr_selected)
 		surface.SetDrawColor(settings.style_data.gutter_foreground)
 		surface.DrawRect(0, 0, w, h)
 	end
@@ -125,6 +124,8 @@ end
 function Node:SetPath(path, root_path)
 	self.path = path
 	self.root_path = root_path or "DATA"
+	self.tree.nodes_lookup[self.root_path] = self.tree.nodes_lookup[self.root_path] or {}
+	self.tree.nodes_lookup[self.root_path][self.path] = self
 	self:MarkModified()
 end
 
@@ -155,6 +156,15 @@ function Node:SetIcon(icon)
 	self.icon = icons[icon] or icon
 end
 
+function Node:Expand(state)
+	if not self.is_folder then return end
+	
+	if self.expanded ~= state then
+		self.expanded = state
+		self.tree:InvalidateLayout()
+	end
+end
+
 vgui.Register("SyperTreeNode", Node, "Panel")
 
 ----------------------------------------
@@ -164,6 +174,7 @@ local Tree = {SyperFocusable = false}
 function Tree:Init()
 	self.folders = {}
 	self.selected = {}
+	self.nodes_lookup = {}
 	self.autoreload = true
 	self.node_size = 20
 	self.last_system_focus = system.HasFocus()
@@ -279,14 +290,14 @@ function Tree:OnVScroll(scroll)
 end
 
 function Tree:Select(node, clear)
-	if node.tree ~= self then return end
-	
 	if clear then
 		for node, _ in pairs(self.selected) do
 			self.selected[node] = nil
 			node.selected = nil
 		end
 	end
+	
+	if not node or node.tree ~= self then return end
 	
 	if self.selected[node] then
 		self.selected[node] = nil

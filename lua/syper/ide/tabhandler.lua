@@ -22,6 +22,10 @@ function Tab:OnMousePressed(key)
 	if key ~= MOUSE_LEFT then return end
 	
 	self.handler:SetActivePanel(self.panel)
+	
+	if self.handler.OnTabPress then
+		self.handler:OnTabPress(self)
+	end
 end
 
 function Tab:OnMouseWheeled(delta)
