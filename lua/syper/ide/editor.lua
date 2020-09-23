@@ -207,8 +207,22 @@ function Act.newline(self)
 				for i = #tokens, 1, -1 do
 					local token = tokens[i]
 					if caret.x > token.s then
-						local indent = self.mode.indent[token.str]
-						if indent and not indent[token.mode] then
+						local indent_sum = 0
+						for j = 1, i do
+							local token = tokens[j]
+							
+							local indent = self.mode.indent[token.str]
+							if indent and not indent[token.mode] then
+								indent_sum = indent_sum + 1
+							end
+							
+							local outdent = self.mode.outdent[token.str]
+							if outdent and not outdent[token.mode] then
+								indent_sum = math.max(0, indent_sum - 1)
+							end
+						end
+						
+						if indent_sum > 0 then
 							local token2 = tokens[i + 1]
 							if token2 then
 								local bracket = self.mode.bracket2[token2.str]
@@ -221,12 +235,9 @@ function Act.newline(self)
 							else
 								spacer = spacer .. tab_str
 							end
-							
-							break
-						else
-							local outdent = self.mode.outdent[token.str]
-							if outdent and not outdent[token.mode] then break end
 						end
+						
+						break
 					end
 				end
 			end
