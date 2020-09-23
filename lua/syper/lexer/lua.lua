@@ -62,15 +62,15 @@ return {
 	
 	mcomment = {
 		{"(\n)", TOKEN.Comment},
-		{"([^\n]+)%]<CAP>%]", TOKEN.Comment},
 		{"(%]<CAP>%])", TOKEN.Comment, "main"},
+		{"(%]?[^\n%]]*)", TOKEN.Comment},
 		{"([^\n]+)", TOKEN.Comment},
 	},
 	
 	mstring = {
 		{"(\n)", TOKEN.String},
-		{"([^\n]+)%]<CAP>%]", TOKEN.String},
 		{"(%]<CAP>%])", TOKEN.String, "main"},
+		{"(%]?[^\n%]]*)", TOKEN.String},
 		{"([^\n]+)", TOKEN.String},
 	},
 	
