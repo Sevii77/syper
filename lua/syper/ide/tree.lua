@@ -88,7 +88,7 @@ function Node:OnMousePressed(key)
 	elseif not self.is_folder or key == MOUSE_RIGHT then
 		self.tree:Select(self, true)
 		
-		if self.tree.OnNodePress then
+		if not self.is_folder and self.tree.OnNodePress then
 			self.tree:OnNodePress(self)
 		end
 	elseif key == MOUSE_LEFT then
