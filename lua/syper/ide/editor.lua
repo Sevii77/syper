@@ -930,7 +930,8 @@ function Editor:Init()
 		
 		-- carets
 		surface.SetFont("syper_syntax_1")
-		surface.SetDrawColor(255, 255, 255, math.Clamp(math.cos((RealTime() - self.caretblink) * math.pi * 1.6) * 255 + 128, 0, 255))
+		local clr = settings.style_data.caret
+		surface.SetDrawColor(clr.r, clr.g, clr.b, math.Clamp(math.cos((RealTime() - self.caretblink) * math.pi * 1.6) * 255 + 128, 0, 255))
 		
 		for caret_id, caret in ipairs(self.carets) do
 			local x = caret.x

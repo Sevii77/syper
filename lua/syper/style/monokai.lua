@@ -2,6 +2,7 @@ local TOKEN = Syper.TOKEN
 
 return {
 	background        = {r = 39,  g = 40,  b = 34,  a = 255},
+	caret             = {r = 248, g = 248, b = 242, a = 255},
 	highlight         = {r = 73,  g = 72,  b = 62,  a = 255},
 	highlight2        = {r = 146, g = 144, b = 140, a = 255},
 	gutter_background = {r = 36,  g = 36,  b = 31,  a = 255},
@@ -10,6 +11,9 @@ return {
 	fold_foreground   = {r = 39,  g = 40,  b = 34,  a = 255},
 	
 	ide_ui            = {r = 47,  g = 52,  b = 63,  a = 255},
+	ide_ui_dark       = {r = 37,  g = 42,  b = 53,  a = 255},
+	ide_ui_light      = {r = 52,  g = 57,  b = 68,  a = 255},
+	ide_ui_accent     = {r = 255, g = 151, b = 31,  a = 255},
 	ide_background    = {r = 25,  g = 25,  b = 21,  a = 255},
 	ide_foreground    = {r = 248, g = 248, b = 242, a = 255},
 	ide_disabled      = {r = 146, g = 144, b = 140, a = 255},

@@ -7,6 +7,8 @@ do
 	add("./base_textentry.lua")
 	add("./divider_h.lua")
 	add("./divider_v.lua")
+	add("./textentry.lua")
+	add("./button.lua")
 	add("./tabhandler.lua")
 	add("./tree.lua")
 	add("./editor.lua")
