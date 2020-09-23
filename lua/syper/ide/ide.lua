@@ -40,7 +40,7 @@ function Act.save(self, as)
 		
 		save_panel.OnConfirm = function(_, path)
 			panel:SetPath(path, panel.root_path)
-			panel:Save()
+			print(panel:Save())
 		end
 		
 		return
@@ -59,8 +59,8 @@ function Act.save(self, as)
 		end
 		
 		save_panel.OnConfirm = function(_, path)
-			panel:SetPath(path, panel.root_path)
-			panel:Save()
+			panel:SetPath(path)
+			print(panel:Save())
 		end
 	end
 end

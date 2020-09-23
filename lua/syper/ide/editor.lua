@@ -1493,6 +1493,7 @@ function Editor:Save()
 	if self.root_path ~= "DATA" then return false, 2 end
 	if file.IsDir(self.path, "DATA") then return false, 3 end
 	if string.sub(self.path, -1, -1) == "/" then return false, 4 end
+	if not Syper.validPath(self.path) then return false, 5 end
 	
 	local dirs, p = {}, 1
 	while true do
@@ -1523,12 +1524,8 @@ function Editor:ReloadFile()
 end
 
 function Editor:SetPath(path, root_path)
-	if not Syper.validPath(path) then return false end
-	
 	self.path = path
 	self.root_path = root_path or "DATA"
-	
-	return true
 end
 
 function Editor:Refresh()
