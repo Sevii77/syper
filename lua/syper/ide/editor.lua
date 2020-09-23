@@ -211,14 +211,14 @@ function Act.newline(self)
 						for j = 1, i do
 							local token = tokens[j]
 							
-							local indent = self.mode.indent[token.str]
-							if indent and not indent[token.mode] then
-								indent_sum = indent_sum + 1
-							end
-							
 							local outdent = self.mode.outdent[token.str]
 							if outdent and not outdent[token.mode] then
 								indent_sum = math.max(0, indent_sum - 1)
+							end
+							
+							local indent = self.mode.indent[token.str]
+							if indent and not indent[token.mode] then
+								indent_sum = indent_sum + 1
 							end
 						end
 						
