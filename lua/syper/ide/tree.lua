@@ -74,6 +74,10 @@ end
 
 function Node:OnRemove()
 	self.tree.nodes_lookup[self.root_path][self.path] = nil
+	
+	for i, node in ipairs(self.nodes) do
+		node:Remove()
+	end
 end
 
 function Node:OnMousePressed(key)
