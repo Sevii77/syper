@@ -354,14 +354,14 @@ function IDE:Save(panel, force_browser)
 		end
 		
 		save_panel.OnConfirm = function(_, path)
-			local selected = self.filetree.nodes_lookup[panel.root_path][panel.path].selected
+			local selected = panel.root_path and panel.path and self.filetree.nodes_lookup[panel.root_path][panel.path]
 			panel:SetPath(path)
 			local th = self:GetActiveTabHandler()
 			th:RenameTab(th:GetIndex(panel), string.match(path, "([^/]+)/?$"))
 			print(panel:Save())
 			
 			self.filetree:Refresh(panel.path, panel.root_path)
-			if selected then
+			if selected.selected then
 				self.filetree:Select(self.filetree.nodes_lookup[panel.root_path][panel.path], true)
 			end
 		end
