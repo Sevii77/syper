@@ -352,6 +352,8 @@ function IDE:Save(panel, force_browser)
 		
 		save_panel.OnConfirm = function(_, path)
 			panel:SetPath(path)
+			local th = self:GetActiveTabHandler()
+			th:RenameTab(th:GetIndex(panel), string.match(path, "([^/]+)/?$"))
 			print(panel:Save())
 			
 			self.filetree:Refresh(panel.path, panel.root_path)

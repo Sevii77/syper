@@ -233,6 +233,11 @@ function TabHandler:RemoveTab(index, keep_panel)
 	end
 end
 
+function TabHandler:RenameTab(index, name)
+	self.tabs[index].name = name
+	self.tabs[index].tab.name = name
+end
+
 function TabHandler:GetIndex(panel)
 	for i, tab in ipairs(self.tabs) do
 		if tab.panel == panel then
