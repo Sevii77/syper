@@ -73,7 +73,9 @@ function Node:Paint(w, h)
 end
 
 function Node:OnRemove()
+	if not self.tree.nodes_lookup then return end
 	self.tree.nodes_lookup[self.root_path][self.path] = nil
+	self.tree.selected[self] = nil
 	
 	for i, node in ipairs(self.nodes) do
 		node:Remove()
@@ -81,21 +83,36 @@ function Node:OnRemove()
 end
 
 function Node:OnMousePressed(key)
-	if key == MOUSE_LEFT then
-		if self.is_folder then
-			self.expanded = not self.expanded
-			self.tree:InvalidateLayout()
-		else
-			if self.tree.OnNodePress then
-				self.tree:OnNodePress(self)
+	if input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL) then
+		self.tree:Select(self)
+	elseif not self.is_folder or key == MOUSE_RIGHT then
+		self.tree:Select(self, true)
+		
+		if self.tree.OnNodePress then
+			self.tree:OnNodePress(self)
+		end
+	elseif key == MOUSE_LEFT then
+		self.expanded = not self.expanded
+		self.tree:InvalidateLayout()
+	end
+	
+	if key == MOUSE_RIGHT and self.root_path == "DATA" then
+		-- TODO: make not look shit
+		local menu = DermaMenu()
+		menu:AddOption("Rename", function()
+			self.tree:FindIDE():Rename(self.path)
+		end)
+		menu:AddOption("Delete", function()
+			local paths = {}
+			for node, _ in pairs(self.tree.selected) do
+				if node.root_path == "DATA" then
+					paths[#paths + 1] = node.path
+				end
 			end
 			
-			if input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL) then
-				self.tree:Select(self)
-			else
-				self.tree:Select(self, true)
-			end
-		end
+			self.tree:FindIDE():Delete(paths)
+		end)
+		menu:Open()
 	end
 end
 
@@ -396,7 +413,7 @@ function Tree:AddFolder(name, path, root_path)
 end
 
 function Tree:AddDirectory(path, root_path)
-	local name = string.match(path, "/?([^/]+)/?$")
+	local name = string.match(path, "([^/]+)/?$")
 	path = string.sub(path, -1, -1) == "/" and path or path .. "/"
 	root_path = root_path or "DATA"
 	

@@ -5,12 +5,9 @@ local settings = Syper.Settings.settings
 local Button = {}
 
 function Button:Paint(w, h)
-	-- surface.SetDrawColor(self.Hovered and settings.style_data.ide_ui_accent or settings.style_data.ide_ui_dark)
 	surface.SetDrawColor((self.Depressed or self:IsSelected() or self:GetToggle()) and settings.style_data.ide_ui_accent or settings.style_data.ide_ui_dark)
 	surface.DrawRect(0, 0, w, h)
 	
-	-- surface.SetDrawColor(self:GetDisabled() and settings.style_data.gutter_foreground or (
-	-- 	(self.Depressed or self:IsSelected() or self:GetToggle()) and settings.style_data.gutter_foreground or settings.style_data.ide_ui_light))
 	surface.SetDrawColor(self:GetDisabled() and settings.style_data.gutter_foreground or
 	                     (self.Hovered and settings.style_data.ide_ui_dark or settings.style_data.ide_ui_light))
 	surface.DrawRect(1, 1, w - 2, h - 2)

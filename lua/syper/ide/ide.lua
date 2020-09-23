@@ -17,6 +17,7 @@ do
 end
 
 local Settings = Syper.Settings
+local settings = Settings.settings
 local FT = Syper.FILETYPE
 
 ----------------------------------------
@@ -283,7 +284,7 @@ function IDE:Init()
 end
 
 function IDE:Paint(w, h)
-	surface.SetDrawColor(Settings.settings.style_data.ide_ui)
+	surface.SetDrawColor(settings.style_data.ide_ui)
 	surface.DrawRect(0, 0, w, h)
 	
 	return true
@@ -341,6 +342,8 @@ end
 function IDE:Save(panel, force_browser)
 	local function browser(relative_path)
 		local save_panel = vgui.Create("SyperBrowser")
+		local x, y = self:LocalToScreen(self:GetWide() / 2, self:GetTall() / 2)
+		save_panel:SetPos(x - 240, y - 180)
 		save_panel:SetSize(480, 360)
 		save_panel:MakePopup()
 		
@@ -351,12 +354,16 @@ function IDE:Save(panel, force_browser)
 		end
 		
 		save_panel.OnConfirm = function(_, path)
+			local selected = self.filetree.nodes_lookup[panel.root_path][panel.path].selected
 			panel:SetPath(path)
 			local th = self:GetActiveTabHandler()
 			th:RenameTab(th:GetIndex(panel), string.match(path, "([^/]+)/?$"))
 			print(panel:Save())
 			
 			self.filetree:Refresh(panel.path, panel.root_path)
+			if selected then
+				self.filetree:Select(self.filetree.nodes_lookup[panel.root_path][panel.path], true)
+			end
 		end
 	end
 	
@@ -372,6 +379,146 @@ function IDE:Save(panel, force_browser)
 	else
 		self.filetree:Refresh(panel.path, panel.root_path)
 	end
+end
+
+function IDE:Delete(path)
+	local single = type(path) == "string"
+	local paths = single and {path} or path
+	
+	self:ConfirmPanel("Are you sure you want to delete\n" .. table.concat(paths, "\n"), function() end, function()
+		local function deldir(path)
+			path = string.sub(path, -1, -1) == "/" and path or path .. "/"
+			path = string.sub(path, 1, 1) == "/" and string.sub(path, 2) or path
+			
+			local files, dirs = file.Find(path .. "*", "DATA")
+			for _, name in ipairs(files) do
+				-- print("del file " .. path .. name)
+				file.Delete(path .. name)
+			end
+			
+			for _, name in ipairs(dirs) do
+				-- print("del dir " .. path .. name)
+				deldir(path .. name)
+			end
+			
+			file.Delete(path)
+		end
+		
+		for _, path in ipairs(paths) do
+			if file.IsDir(path, "DATA") then
+				deldir(path)
+			else
+				file.Delete(path)
+			end
+			
+			self.filetree:Refresh(path, "DATA")
+		end
+	end)
+end
+
+function IDE:Rename(path)
+	local name = string.match(path, "([^/]+)/?$")
+	path = string.sub(path, 1, string.match(path, "()[^/]*/?$") - 1)
+	
+	local frame = vgui.Create("DFrame")
+	local x, y = self:LocalToScreen(self:GetWide() / 2, self:GetTall() / 2)
+	frame:SetPos(x - 180, y - 27)
+	frame:SetSize(360, 54)
+	frame:SetTitle("Rename")
+	frame.Paint = function(_, w, h)
+		surface.SetDrawColor(settings.style_data.ide_ui)
+		surface.DrawRect(0, 0, w, h)
+		
+		return true
+	end
+	
+	frame.confirm = frame:Add("SyperButton")
+	frame.confirm:SetWide(80)
+	frame.confirm:Dock(RIGHT)
+	frame.confirm:SetText("Confirm")
+	frame.confirm:SetFont("syper_ide")
+	frame.confirm:SetDoubleClickingEnabled(false)
+	frame.confirm.DoClick = function()
+		frame:Remove()
+		
+		local tab
+		local tabhandler = self:GetActiveTabHandler()
+		for i, t in ipairs(tabhandler.tabs) do
+			if t.panel.path == path .. name then
+				tab = t
+				
+				break
+			end
+		end
+		
+		local nname = frame.entry:GetText()
+		file.Rename(path .. name, path .. nname)
+		self.filetree:Refresh(path, "DATA")
+		if self.filetree.nodes_lookup.DATA[path .. name].selected then
+			self.filetree:Select(self.filetree.nodes_lookup.DATA[path .. nname], true)
+		end
+		
+		if tab then
+			tab.name = nname
+			tab.tab.name = nname
+			tab.panel:SetPath(path .. nname)
+		end
+	end
+	
+	frame.entry = frame:Add("SyperTextEntry")
+	frame.entry:Dock(FILL)
+	frame.entry:SetFont("syper_ide")
+	frame.entry:SetText(name)
+	frame.entry:SelectAllOnFocus()
+	frame.entry.OnChange = function(_)
+		frame.confirm:SetEnabled(Syper.validFileName(_:GetText()))
+	end
+	
+	frame:MakePopup()
+	frame.entry:RequestFocus()
+end
+
+function IDE:ConfirmPanel(text, cancel_func, confirm_func)
+	surface.SetFont("syper_ide")
+	local tw, th = surface.GetTextSize(text)
+	
+	local frame = vgui.Create("DFrame")
+	local x, y = self:LocalToScreen(self:GetWide() / 2, self:GetTall() / 2)
+	frame:SetPos(x - 180, y - 27)
+	frame:SetSize(360, 74 + th)
+	frame:SetTitle("Rename")
+	frame.Paint = function(_, w, h)
+		surface.SetDrawColor(settings.style_data.ide_ui)
+		surface.DrawRect(0, 0, w, h)
+		
+		draw.DrawText(text, "syper_ide", w / 2, 29, settings.style_data.ide_foreground, 1)
+		
+		return true
+	end
+	
+	frame.cancel = frame:Add("SyperButton")
+	frame.cancel:SetPos(5, 39 + th)
+	frame.cancel:SetSize(175, 30)
+	frame.cancel:SetText("Cancel")
+	frame.cancel:SetFont("syper_ide")
+	frame.cancel.DoClick = function()
+		frame:Remove()
+		
+		cancel_func()
+	end
+	
+	frame.confirm = frame:Add("SyperButton")
+	frame.confirm:SetPos(180, 39 + th)
+	frame.confirm:SetSize(175, 30)
+	frame.confirm:SetText("Confirm")
+	frame.confirm:SetFont("syper_ide")
+	frame.confirm.DoClick = function()
+		frame:Remove()
+		
+		confirm_func()
+	end
+	
+	frame:MakePopup()
 end
 
 vgui.Register("SyperIDE", IDE, "DFrame")
