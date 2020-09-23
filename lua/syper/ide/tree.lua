@@ -85,15 +85,19 @@ end
 function Node:OnMousePressed(key)
 	if input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL) then
 		self.tree:Select(self)
-	elseif not self.is_folder or key == MOUSE_RIGHT then
+	elseif key == MOUSE_RIGHT and not self.selected then
 		self.tree:Select(self, true)
-		
-		if not self.is_folder and self.tree.OnNodePress then
-			self.tree:OnNodePress(self)
-		end
 	elseif key == MOUSE_LEFT then
-		self.expanded = not self.expanded
-		self.tree:InvalidateLayout()
+		if not self.is_folder then
+			self.tree:Select(self, true)
+			
+			if self.tree.OnNodePress then
+				self.tree:OnNodePress(self)
+			end
+		else
+			self.expanded = not self.expanded
+			self.tree:InvalidateLayout()
+		end
 	end
 	
 	if key == MOUSE_RIGHT and self.root_path == "DATA" then

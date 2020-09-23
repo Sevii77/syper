@@ -361,7 +361,7 @@ function IDE:Save(panel, force_browser)
 			print(panel:Save())
 			
 			self.filetree:Refresh(panel.path, panel.root_path)
-			if selected.selected then
+			if selected and selected.selected then
 				self.filetree:Select(self.filetree.nodes_lookup[panel.root_path][panel.path], true)
 			end
 		end
