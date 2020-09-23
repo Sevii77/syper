@@ -1,5 +1,4 @@
 -- TODO: make look even nicer
--- TODO: refresh filetree on save
 -- TODO: make tab closing use this
 
 local settings = Syper.Settings.settings

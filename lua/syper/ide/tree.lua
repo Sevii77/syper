@@ -72,6 +72,10 @@ function Node:Paint(w, h)
 	surface.DrawText(self.name)
 end
 
+function Node:OnRemove()
+	self.tree.nodes_lookup[self.root_path][self.path] = nil
+end
+
 function Node:OnMousePressed(key)
 	if key == MOUSE_LEFT then
 		if self.is_folder then
@@ -102,16 +106,15 @@ function Node:AddNode(name, is_folder)
 	return node
 end
 
-function Node:AddDirectory(path)
+function Node:AddDirectory()
 	if not self.is_folder then return end
-	path = string.sub(path, -1, -1) == "/" and path or path .. "/"
+	local path = string.sub(self.path, -1, -1) == "/" and self.path or self.path .. "/"
 	
 	local files, dirs = file.Find(path .. "*", self.root_path)
 	for _, dir in ipairs(dirs) do
 		local n = self:AddNode(dir, true)
-		local p = path .. dir
-		n:SetPath(p, self.root_path)
-		n:AddDirectory(p)
+		n:SetPath(path .. dir, self.root_path)
+		n:AddDirectory()
 	end
 	
 	for _, file in ipairs(files) do
@@ -119,6 +122,77 @@ function Node:AddDirectory(path)
 		n:SetPath(path .. file, self.root_path)
 		n:GuessIcon()
 	end
+end
+
+function Node:Refresh(recursive)
+	if not self.is_folder then return end
+	local path = string.sub(self.path, -1, -1) == "/" and self.path or self.path .. "/"
+	local names = {}
+	local files, dirs = file.Find(path .. "*", self.root_path)
+	for _, n in ipairs(files) do names[n] = 1 end
+	for _, n in ipairs(dirs) do names[n] = 2 end
+	
+	for i = #self.nodes, 1, -1 do
+		local node = self.nodes[i]
+		if names[node.name] then
+			names[node.name] = nil
+			
+			if recursive and node.is_folder then
+				node:Refresh(true)
+			end
+		else
+			node:Remove()
+			table.remove(self.nodes, i)
+			self.tree:InvalidateLayout()
+		end
+	end
+	
+	local reorder = false
+	for name, typ in pairs(names) do
+		if typ == 1 then
+			local node = self:AddNode(name, false)
+			node:SetPath(self.path .. name, self.root_path)
+			node:GuessIcon()
+			reorder = true
+			self.tree:InvalidateLayout()
+		else
+			local node = self:AddNode(name, true)
+			node:SetPath(self.path .. name, self.root_path)
+			node:AddDirectory()
+			reorder = true
+			self.tree:InvalidateLayout()
+		end
+	end
+	
+	if reorder then
+		self:ReorderChildren()
+	end
+end
+
+function Node:ReorderChildren()
+	table.sort(self.nodes, function(a, b)
+		local function dostr(a, b)
+			for i = 1, math.min(#a, #b) do
+				local ab, bb = string.byte(string.sub(a, i, i)), string.byte(string.sub(b, i, i))
+				if ab < bb then return true end
+				if bb < ab then return false end
+			end
+			
+			return #a < #b
+		end
+		
+		if a.is_folder then
+			if b.is_folder then
+				return dostr(a.name, b.name)
+			end
+			
+			return true
+		elseif b.is_folder then
+			return false
+		end
+		
+		return dostr(a.name, b.name)
+	end)
 end
 
 function Node:SetPath(path, root_path)
@@ -175,7 +249,7 @@ function Tree:Init()
 	self.folders = {}
 	self.selected = {}
 	self.nodes_lookup = {}
-	self.autoreload = true
+	self.autorefresh = true
 	self.node_size = 20
 	self.last_system_focus = system.HasFocus()
 	
@@ -211,8 +285,8 @@ end
 
 function Tree:Think()
 	local focus = system.HasFocus()
-	if self.autoreload and focus ~= self.last_system_focus then
-		-- reload shit
+	if self.autorefresh and focus and focus ~= self.last_system_focus then
+		self:Refresh(nil, nil, true)
 	end
 	self.last_system_focus = focus
 end
@@ -270,7 +344,6 @@ function Tree:OnMouseWheeled(delta, horizontal)
 	end
 end
 
-
 function Tree:DoScroll(delta)
 	local speed = settings.scroll_speed
 	self.scrolltarget = math.Clamp(self.scrolltarget + delta, 0, self.scrollbar.CanvasSize)
@@ -308,9 +381,10 @@ function Tree:Select(node, clear)
 	end
 end
 
-function Tree:AddFolder(name)
+function Tree:AddFolder(name, path, root_path)
 	local node = self.content:Add("SyperTreeNode")
 	node:Setup(self, name, true)
+	node:SetPath(path, root_path)
 	
 	self.folders[#self.folders + 1] = node
 	
@@ -322,14 +396,13 @@ function Tree:AddDirectory(path, root_path)
 	path = string.sub(path, -1, -1) == "/" and path or path .. "/"
 	root_path = root_path or "DATA"
 	
-	local node = self:AddFolder(name)
+	local node = self:AddFolder(name, path, root_path)
 	
 	local files, dirs = file.Find(path .. "*", root_path)
 	for _, dir in ipairs(dirs) do
 		local n = node:AddNode(dir, true)
-		local p = path .. dir
-		n:SetPath(p, root_path)
-		n:AddDirectory(p)
+		n:SetPath(path .. dir, root_path)
+		n:AddDirectory()
 	end
 	
 	for _, file in ipairs(files) do
@@ -339,6 +412,47 @@ function Tree:AddDirectory(path, root_path)
 	end
 	
 	return node
+end
+
+function Tree:Refresh(path, root_path, recursive)
+	if path == nil then
+		for _, node in ipairs(self.folders) do
+			node:Refresh(recursive)
+		end
+	else
+		local segs = string.Split(path, "/")
+		if not file.IsDir(path, root_path) then
+			segs[#segs] = nil
+		end
+		
+		local node
+		for i, n in ipairs(self.folders) do
+			if n.name == segs[1] then
+				node = n
+				
+				break
+			end
+		end
+		
+		if not node then return end
+		local depth = 1
+		while node do
+			if depth >= #segs then
+				node:Refresh(recursive)
+				
+				break
+			end
+			
+			depth = depth + 1
+			for i, n in ipairs(node.nodes) do
+				if n.name == segs[depth] then
+					node = n
+					
+					break
+				end
+			end
+		end
+	end
 end
 
 vgui.Register("SyperTree", Tree, "SyperBase")

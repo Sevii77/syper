@@ -23,46 +23,11 @@ local FT = Syper.FILETYPE
 
 local Act = {}
 
-function Act.save(self, as)
+function Act.save(self, force_browser)
 	local panel = vgui.GetKeyboardFocus()
 	if not panel or not IsValid(panel) or panel:GetName() ~= "SyperEditor" then return end
 	
-	if as then
-		local save_panel = vgui.Create("SyperBrowser")
-		save_panel:SetSize(480, 360)
-		save_panel:MakePopup()
-		
-		if panel.path then
-			save_panel:SetPath(panel.path)
-		else
-			save_panel:SetPath("/")
-		end
-		
-		save_panel.OnConfirm = function(_, path)
-			panel:SetPath(path, panel.root_path)
-			print(panel:Save())
-		end
-		
-		return
-	end
-	
-	local saved, err = panel:Save()
-	if not saved then
-		local save_panel = vgui.Create("SyperBrowser")
-		save_panel:SetSize(480, 360)
-		save_panel:MakePopup()
-		
-		if err == 4 then
-			save_panel:SetPath(panel.path)
-		else
-			save_panel:SetPath("/")
-		end
-		
-		save_panel.OnConfirm = function(_, path)
-			panel:SetPath(path)
-			print(panel:Save())
-		end
-	end
+	self:Save(panel, force_browser)
 end
 
 function Act.command_overlay(self, str)
@@ -371,6 +336,40 @@ function IDE:AddTab(name, panel)
 	tabhandler:AddTab(name, panel, tabhandler:GetActive() + 1)
 	
 	self.filetree:Select((panel.root_path and panel.path) and self.filetree.nodes_lookup[panel.root_path][panel.path], true)
+end
+
+function IDE:Save(panel, force_browser)
+	local function browser(relative_path)
+		local save_panel = vgui.Create("SyperBrowser")
+		save_panel:SetSize(480, 360)
+		save_panel:MakePopup()
+		
+		if relative_path then
+			save_panel:SetPath(panel.path)
+		else
+			save_panel:SetPath("/")
+		end
+		
+		save_panel.OnConfirm = function(_, path)
+			panel:SetPath(path)
+			print(panel:Save())
+			
+			self.filetree:Refresh(panel.path, panel.root_path)
+		end
+	end
+	
+	if force_browser then
+		browser(panel.root_path == "DATA" and panel.path)
+		
+		return
+	end
+	
+	local saved, err = panel:Save()
+	if not saved then
+		browser(err == 4)
+	else
+		self.filetree:Refresh(panel.path, panel.root_path)
+	end
 end
 
 vgui.Register("SyperIDE", IDE, "DFrame")
