@@ -723,8 +723,8 @@ function Editor:Init()
 				str = str .. ", " .. count .. " Selected Characters"
 			end
 		end
-		local tw, th = surface.GetTextSize(str)
 		
+		local tw, th = surface.GetTextSize(str)
 		surface.SetTextColor(settings.style_data.ide_disabled)
 		surface.SetTextPos((h - th) / 2 + 2, h / 2 - th / 2 + 2)
 		surface.DrawText(str)
@@ -843,40 +843,41 @@ function Editor:Init()
 					local ry = self:GetVisualLineY(sy)
 					if ry then
 						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-						local str = sub(lines[sy].str, sx, ex)
-						local tw = surface.GetTextSize(getRenderString(str))
+						local str = getRenderStringSelected(sub(lines[sy].str, sx, ex))
+						local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and th / 3 or 0)
 						surface.DrawRect(offset + 1, ry * th - th + 1, tw - 2, th - 2)
 						surface.SetTextPos(offset, ry * th - th)
-						surface.DrawText(getRenderStringSelected(str))
+						surface.DrawText(str)
 					end
 				else
 					local ry = self:GetVisualLineY(sy)
 					if ry then
 						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-						local str = sub(lines[sy].str, sx)
-						local tw = surface.GetTextSize(getRenderString(str)) + th / 3
+						local str = getRenderStringSelected(sub(lines[sy].str, sx))
+						local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and th / 3 or 0)
 						surface.DrawRect(offset + 1, ry * th - th + 1, tw - 1, th - 1)
 						surface.SetTextPos(offset, ry * th - th)
-						surface.DrawText(getRenderStringSelected(str))
+						surface.DrawText(str)
 					end
 					
 					for y = sy + 1, ey - 1 do
 						local ry = self:GetVisualLineY(y)
 						if ry then
-							local tw = surface.GetTextSize(getRenderString(lines[y].str)) + th / 3
+							local str = getRenderStringSelected(lines[y].str)
+							local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and th / 3 or 0)
 							surface.DrawRect(0, ry * th - th, tw, th)
 							surface.SetTextPos(0, ry * th - th)
-							surface.DrawText(getRenderStringSelected(lines[y].str))
+							surface.DrawText(str)
 						end
 					end
 					
 					local ry = self:GetVisualLineY(ey)
 					if ry then
-						local str = sub(lines[ey].str, 1, ex)
-						local tw = surface.GetTextSize(getRenderString(str))
+						local str = getRenderStringSelected(sub(lines[ey].str, 1, ex))
+						local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and th / 3 or 0)
 						surface.DrawRect(0, ry * th - th, tw - 1, th - 1)
 						surface.SetTextPos(0, ry * th - th)
-						surface.DrawText(getRenderStringSelected(str))
+						surface.DrawText(str)
 					end
 				end
 			end
@@ -1046,6 +1047,12 @@ function Editor:OnRemove()
 end
 
 function Editor:Think()
+	for caret_id, caret in ipairs(self.carets) do
+		if caret.update_info then
+			self:UpdateCaretInfo(caret_id)
+		end
+	end
+	
 	if self.clear_excess_carets then
 		self:ClearExcessCarets()
 	end
@@ -1101,7 +1108,6 @@ function Editor:OnMousePressed(key)
 		key
 	)
 	
-	self.last_click = RealTime()
 	if key == MOUSE_LEFT then
 		self:RequestFocus()
 	end
@@ -1111,9 +1117,13 @@ function Editor:OnMousePressed(key)
 		if act then
 			act(self, unpack(bind.args or {}))
 			
+			self.last_click = RealTime()
+			
 			return true
 		end
 	end
+	
+	self.last_click = RealTime()
 	
 	return self.ide:OnMousePressed(key)
 end
@@ -1725,14 +1735,27 @@ function Editor:GetCursorAsY()
 end
 
 function Editor:AddCaret(x, y)
-	self.carets[#self.carets + 1] = {
+	self.carets[#self.carets + 1] = setmetatable({
 		x = x,
 		y = y,
 		max_x = x,
 		select_x = nil,
 		select_y = nil,
+		update_info = false,
 		new = true
-	}
+	}, {
+		__newindex = function(caret, k, v)
+			if k == "x" then
+				rawset(caret, "max_x", x)
+			elseif k == "max_x" then
+				-- TODO: not have this and just remove all max_x assigns
+				return
+			end
+			
+			rawset(caret, "update_info", true)
+			rawset(caret, k, v)
+		end
+	})
 	
 	self:MarkClearExcessCarets()
 	self:MarkScrollToCaret()
@@ -1743,7 +1766,8 @@ function Editor:AddCaret(x, y)
 	
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.new then
-			caret.new = nil
+			-- caret.new = nil
+			rawset(caret, "new", nil)
 			return caret_id
 		end
 	end
@@ -1779,9 +1803,13 @@ function Editor:SetCaret(i, x, y)
 		end
 	end
 	
-	caret.x = x
-	caret.y = y
-	caret.max_x = x
+	-- caret.x = x
+	-- caret.y = y
+	-- caret.max_x = x
+	rawset(caret, "x", x)
+	rawset(caret, "y", y)
+	rawset(caret, "max_x", max_x)
+	rawset(caret, "update_info", true)
 	
 	self.caretblink = RealTime()
 	self:MarkClearExcessCarets()
@@ -1798,27 +1826,37 @@ function Editor:MoveCaret(i, x, y)
 			if x > 0 then
 				local ll = lines[caret.y].len
 				if caret.x < ll or caret.y < #lines then
-					caret.x = caret.x + 1
+					-- caret.x = caret.x + 1
+					rawset(caret, "x", caret.x + 1)
 					if caret.x > ll then
-						caret.x = 1
-						caret.y = caret.y + 1
+						-- caret.x = 1
+						rawset(caret, "x", 1)
+						-- caret.y = caret.y + 1
+						rawset(caret, "y", caret.y + 1)
 						while not self:GetVisualLineY(caret.y) do
-							caret.y = caret.y + 1
+							-- caret.y = caret.y + 1
+							rawset(caret, "y", caret.y + 1)
 						end
 					end
-					caret.max_x = caret.x
+					-- caret.max_x = caret.x
+					rawset(caret, "max_x", caret.x)
 				end
 			else
 				if caret.x > 1 or caret.y > 1 then
-					caret.x = caret.x - 1
+					-- caret.x = caret.x - 1
+					rawset(caret, "x", caret.x - 1)
 					if caret.x < 1 then
-						caret.y = caret.y - 1
+						-- caret.y = caret.y - 1
+						rawset(caret, "y", caret.y - 1)
 						while not self:GetVisualLineY(caret.y) do
-							caret.y = caret.y - 1
+							-- caret.y = caret.y - 1
+							rawset(caret, "y", caret.y - 1)
 						end
-						caret.x = lines[caret.y].len
+						-- caret.x = lines[caret.y].len
+						rawset(caret, "x", lines[caret.y].len)
 					end
-					caret.max_x = caret.x
+					-- caret.max_x = caret.x
+					rawset(caret, "max_x", caret.x)
 				end
 			end
 		end
@@ -1830,30 +1868,60 @@ function Editor:MoveCaret(i, x, y)
 			if y > 0 then
 				if caret.y < #lines then
 					local cy = caret.y
-					caret.y = caret.y + 1
+					-- caret.y = caret.y + 1
+					rawset(caret, "y", caret.y + 1)
 					while not self:GetVisualLineY(caret.y) do
-						caret.y = caret.y + 1
+						-- caret.y = caret.y + 1
+						rawset(caret, "y", caret.y + 1)
 					end
-					caret.x = renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x))
+					-- caret.x = renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x))
+					rawset(caret, "x", renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x)))
 					
 					if caret.y == #lines then break end
 				end
 			elseif caret.y > 1 then
 				local cy = caret.y
-				caret.y = caret.y - 1
+				-- caret.y = caret.y - 1
+				rawset(caret, "y", caret.y - 1)
 				while not self:GetVisualLineY(caret.y) do
-					caret.y = caret.y - 1
+					-- caret.y = caret.y - 1
+					rawset(caret, "y", caret.y - 1)
 				end
-				caret.x = renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x))
+				-- caret.x = renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x))
+				rawset(caret, "x", renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x)))
 				
 				if caret.y == 1 then break end
 			end
 		end
 	end
 	
+	rawset(caret, "update_info", true)
+	
 	self.caretblink = RealTime()
 	self:MarkClearExcessCarets()
 	self:MarkScrollToCaret()
+end
+
+function Editor:UpdateCaretInfo(i)
+	local lines = self.content_data.lines
+	local caret = self.carets[i]
+	
+	local x, y = caret.x, caret.y
+	if x > lines[y].len and y == #lines then
+		rawset(caret, "x", lines[y].len)
+	end
+	
+	local x, y = caret.select_x, caret.select_y
+	if x and x > lines[y].len and y == #lines then
+		rawset(caret, "select_x", lines[y].len)
+	end
+	
+	if caret.x == caret.select_x and caret.y == caret.select_y then
+		rawset(caret, "select_x", nil)
+		rawset(caret, "select_y", nil)
+	end
+	
+	rawset(caret, "update_info", false)
 end
 
 function Editor:MarkScrollToCaret()
