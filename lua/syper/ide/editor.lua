@@ -827,57 +827,17 @@ function Editor:Init()
 		surface.SetDrawColor(settings.style_data.highlight)
 		surface.SetTextColor(settings.style_data.highlight2)
 		
-		local lines = self.content_data.lines
+		local sy, ey = self:GetViewBounds()
 		for _, caret in ipairs(self.carets) do
 			if caret.select_x then
-				local sx, sy = caret.x, caret.y
-				local ex, ey = caret.select_x, caret.select_y
-				
-				if ey < sy or (ex < sx and sy == ey) then
-					sx, sy, ex, ey = ex, ey, sx, sy
-				end
-				
-				ex = ex - 1
-				
-				if sy == ey then
-					local ry = self:GetVisualLineY(sy)
-					if ry then
-						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-						local str = getRenderStringSelected(sub(lines[sy].str, sx, ex))
-						local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and th / 3 or 0)
-						surface.DrawRect(offset + 1, ry * th - th + 1, tw - 2, th - 2)
-						surface.SetTextPos(offset, ry * th - th)
-						surface.DrawText(str)
-					end
-				else
-					local ry = self:GetVisualLineY(sy)
-					if ry then
-						local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-						local str = getRenderStringSelected(sub(lines[sy].str, sx))
-						local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and th / 3 or 0)
-						surface.DrawRect(offset + 1, ry * th - th + 1, tw - 1, th - 1)
-						surface.SetTextPos(offset, ry * th - th)
-						surface.DrawText(str)
-					end
-					
-					for y = sy + 1, ey - 1 do
+				for y, line in pairs(caret.select_highlight) do
+					if y >= sy and y <= ey then
 						local ry = self:GetVisualLineY(y)
 						if ry then
-							local str = getRenderStringSelected(lines[y].str)
-							local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and th / 3 or 0)
-							surface.DrawRect(0, ry * th - th, tw, th)
-							surface.SetTextPos(0, ry * th - th)
-							surface.DrawText(str)
+							surface.DrawRect(line[1], ry * th - th, line[2], th)
+							surface.SetTextPos(line[1], ry * th - th)
+							surface.DrawText(line[3])
 						end
-					end
-					
-					local ry = self:GetVisualLineY(ey)
-					if ry then
-						local str = getRenderStringSelected(sub(lines[ey].str, 1, ex))
-						local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and th / 3 or 0)
-						surface.DrawRect(0, ry * th - th, tw - 1, th - 1)
-						surface.SetTextPos(0, ry * th - th)
-						surface.DrawText(str)
 					end
 				end
 			end
@@ -1588,10 +1548,14 @@ function Editor:Rebuild()
 		l.render = line
 	end
 	
+	print("rebuild total", SysTime() - t)
+	
 	self:UpdateScrollbar()
 	self:UpdateGutter()
 	
-	print("rebuild total", SysTime() - t)
+	for i = 1, #self.carets do
+		self:UpdateCaretInfo(i)
+	end
 end
 
 function Editor:GetToken(x, y)
@@ -1906,6 +1870,7 @@ function Editor:UpdateCaretInfo(i)
 	local lines = self.content_data.lines
 	local caret = self.carets[i]
 	
+	-- general
 	local x, y = caret.x, caret.y
 	if x > lines[y].len and y == #lines then
 		rawset(caret, "x", lines[y].len)
@@ -1919,6 +1884,43 @@ function Editor:UpdateCaretInfo(i)
 	if caret.x == caret.select_x and caret.y == caret.select_y then
 		rawset(caret, "select_x", nil)
 		rawset(caret, "select_y", nil)
+	end
+	
+	-- select highlight
+	if caret.select_x then
+		local highlight = {}
+		local sx, sy = caret.x, caret.y
+		local ex, ey = caret.select_x, caret.select_y
+		
+		if ey < sy or (ex < sx and sy == ey) then
+			sx, sy, ex, ey = ex, ey, sx, sy
+		end
+		
+		ex = ex - 1
+		
+		if sy == ey then
+			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
+			local str = getRenderStringSelected(sub(lines[sy].str, sx, ex))
+			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+			highlight[sy] = {offset, tw, str}
+		else
+			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
+			local str = getRenderStringSelected(sub(lines[sy].str, sx))
+			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+			highlight[sy] = {offset, tw, str}
+			
+			for y = sy + 1, ey - 1 do
+				local str = getRenderStringSelected(lines[y].str)
+				local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+				highlight[y] = {0, tw, str}
+			end
+			
+			local str = getRenderStringSelected(sub(lines[ey].str, 1, ex))
+			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+			highlight[ey] = {0, tw, str}
+		end
+		
+		rawset(caret, "select_highlight", highlight)
 	end
 	
 	rawset(caret, "update_info", false)
