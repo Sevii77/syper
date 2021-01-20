@@ -1548,7 +1548,7 @@ function Editor:Rebuild()
 		l.render = line
 	end
 	
-	print("rebuild total", SysTime() - t)
+	-- print("rebuild total", SysTime() - t)
 	
 	self:UpdateScrollbar()
 	self:UpdateGutter()

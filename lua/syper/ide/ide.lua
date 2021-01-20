@@ -358,7 +358,7 @@ function IDE:Save(panel, force_browser)
 			panel:SetPath(path)
 			local th = self:GetActiveTabHandler()
 			th:RenameTab(th:GetIndex(panel), string.match(path, "([^/]+)/?$"))
-			print(panel:Save())
+			--print(panel:Save())
 
 			self.filetree:Refresh(panel.path, panel.root_path)
 			if selected and selected.selected then

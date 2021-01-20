@@ -291,7 +291,7 @@ function ContentTable:RebuildDirty(max_lines)
 		end
 	end
 	
-	print("rebuild dirty", SysTime() - t)
+	-- print("rebuild dirty", SysTime() - t)
 	
 	return changed
 end
@@ -395,7 +395,7 @@ function ContentTable:RebuildTokenPairs()
 		end
 	end
 	
-	print("rebuild token pairs", SysTime() - t)
+	-- print("rebuild token pairs", SysTime() - t)
 	
 	return changed
 end
