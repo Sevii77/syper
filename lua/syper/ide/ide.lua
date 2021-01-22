@@ -1,19 +1,19 @@
 do
 	local add = Syper.include
 	
-	add("./scrollbar_h.lua")
+	add("scrollbar_h.lua", true)
 	
-	add("./base.lua")
-	add("./base_textentry.lua")
-	add("./divider_h.lua")
-	add("./divider_v.lua")
-	add("./textentry.lua")
-	add("./button.lua")
-	add("./tabhandler.lua")
-	add("./tree.lua")
-	add("./editor.lua")
-	add("./html.lua")
-	add("./browser.lua")
+	add("base.lua", true)
+	add("base_textentry.lua", true)
+	add("divider_h.lua", true)
+	add("divider_v.lua", true)
+	add("textentry.lua", true)
+	add("button.lua", true)
+	add("tabhandler.lua", true)
+	add("tree.lua", true)
+	add("editor.lua", true)
+	add("html.lua", true)
+	add("browser.lua", true)
 end
 
 local Settings = Syper.Settings

@@ -169,7 +169,7 @@ function Act.copy(self)
 	end
 	
 	timer.Simple(0.1, function()
-		print(table.concat(str, ""))
+		-- print(table.concat(str, ""))
 		SetClipboardText(table.concat(str, ""))
 	end)
 end
@@ -1548,7 +1548,7 @@ function Editor:Rebuild()
 		l.render = line
 	end
 	
-	print("rebuild total", SysTime() - t)
+	-- print("rebuild total", SysTime() - t)
 	
 	self:UpdateScrollbar()
 	self:UpdateGutter()
