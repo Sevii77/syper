@@ -9,7 +9,7 @@ function Syper.jsonToTable(json)
 		if not s then break end
 		p = s + 1
 	end
-
+	
 	return util.JSONToTable(table.concat(str))
 end
 
@@ -27,7 +27,7 @@ function Syper.validFileName(name)
 	-- if string.find(name, "[\x00-\x1F]") then return false end
 	if system.IsWindows() and names[name] then return false end
 	if not exts[string.match(name, "([^%.]*)$")] then return false end
-
+	
 	return true
 end
 
@@ -36,6 +36,6 @@ function Syper.validPath(path)
 	-- if string.find(path, "[\x00-\x1F]") then return false end
 	if system.IsWindows() and names[string.match(path, "([^/]*)$")] then return false end
 	if not exts[string.match(path, "([^%.]*)$")] then return false end
-
+	
 	return true
 end

@@ -5,16 +5,16 @@ Syper.Settings = {
 }
 
 do
-	for _,name in pairs(file.Find("syper/style/*.lua","LUA")) do
+	for _, name in pairs(file.Find("syper/style/*.lua", "LUA")) do
 		local path = "syper/style/" .. name
-
+		
 		if SERVER then
 			AddCSLuaFile(path)
 		else
 			Syper.Settings.styles[string.sub(name, 1, -5)] = include(path)
 		end
 	end
-
+	
 	AddCSLuaFile("default_binds.lua")
 	AddCSLuaFile("default_settings.lua")
 end
@@ -136,7 +136,7 @@ Settings.keyid = {
 	"f12",
 	"capslocktoggle",
 	"numlocktoggle",
-
+	
 	[107] = "mouse_1",
 	[108] = "mouse_2",
 	[109] = "mouse_3",
@@ -154,7 +154,7 @@ end
 function Settings.lookupBind(ctrl, shift, alt, key)
 	local key = Settings.keyid[key]
 	if not key then return end
-
+	
 	return Settings.binds[
 		(ctrl and "ctrl+" or "") ..
 		(shift and "shift+" or "") ..
@@ -203,12 +203,12 @@ function Settings.rebuildStyle()
 			italic = Settings.settings.style_data[i].i
 		})
 	end
-
+	
 	surface.CreateFont("syper_syntax_fold", {
 		font = Settings.settings.font,
 		size = Settings.settings.font_size - 4
 	})
-
+	
 	surface.CreateFont("syper_ide", {
 		font = Settings.settings.font,
 		size = 15
@@ -220,15 +220,14 @@ function Settings.lookupSetting(name)
 end
 
 function Settings.loadSettings()
-	-- Settings.settings = Syper.jsonToTable(include("syper/default_settings.lua"))
 	for k, _ in pairs(Settings.settings) do
 		Settings.settings[k] = nil
 	end
-
-	for k, v in pairs(Syper.jsonToTable(include("syper/default_settings.lua"))) do
+	
+	for k, v in pairs(Syper.jsonToTable(include("default_settings.lua"))) do
 		Settings.settings[k] = v
 	end
-
+	
 	if not pcall(function()
 		for k, v in pairs(Syper.jsonToTable(file.Read("syper/settings.json", "DATA"))) do
 			Settings.settings[k] = v
@@ -236,10 +235,10 @@ function Settings.loadSettings()
 	end) then
 		ErrorNoHalt("Invalid json in settings\n")
 	end
-
+	
 	Settings.settings.style_data = Settings.styles[Settings.settings.style]
 	Settings.rebuildStyle()
-
+	
 	hook.Run("SyperSettings", Settings.settings)
 end
 
