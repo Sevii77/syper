@@ -176,7 +176,7 @@ function Settings.lookupAct(act)
 end
 
 function Settings.loadBinds()
-	Settings.binds = Syper.jsonToTable(include("default_binds.lua"))
+	Settings.binds = Syper.jsonToTable(include("syper/default_binds.lua"))
 	if not pcall(function()
 		for k, v in pairs(Syper.jsonToTable(file.Read("syper/keybinds.json", "DATA"))) do
 			Settings.binds[tostring(k)] = v
@@ -224,7 +224,7 @@ function Settings.loadSettings()
 		Settings.settings[k] = nil
 	end
 	
-	for k, v in pairs(Syper.jsonToTable(include("default_settings.lua"))) do
+	for k, v in pairs(Syper.jsonToTable(include("syper/default_settings.lua"))) do
 		Settings.settings[k] = v
 	end
 	

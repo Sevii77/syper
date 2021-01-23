@@ -16,6 +16,8 @@ do
 	add("browser.lua", true)
 end
 
+if SERVER then return end
+
 local Settings = Syper.Settings
 local settings = Settings.settings
 local FT = Syper.FILETYPE
