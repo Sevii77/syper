@@ -2,6 +2,9 @@ local TOKEN = Syper.TOKEN
 local ignore = {"mcomment", "mstring", "string"}
 
 return {
+	name = "Lua",
+	ext = {"lua"},
+	
 	indent = {
 		{"function", ignore},
 		{"then", ignore},
@@ -109,4 +112,60 @@ return {
 	},
 	
 	comment = "-- ",
+	
+	env = _G,
+	env_populator = function(str)
+		local lcal = string.match(str, "local()")
+		local e = lcal or 1
+		
+		local stacks = {}
+		for _ = 1, 16 do
+			local stack = {}
+			for i = 1, 16 do
+				local s, e2 = string.match(string.sub(str, e), (i == 1 and "^%s*" or "^%s*[%.:]%s*") .. "([%a_][%w_]*)()")
+				if not s then
+					if i == 1 then break end
+					s, e2 = string.match(string.sub(str, e), "^%s*%[%s*\"(.*)\"%s*%]()")
+					if not s then
+						s, e2 = string.match(string.sub(str, e), "^%s*%[%s*'(.*)'%s*%]()")
+						if not s then break end
+					end
+				end
+				e = e + e2 - 1
+				stack[#stack + 1] = s
+			end
+			
+			stacks[#stacks + 1] = stack
+			
+			local e2 = string.match(string.sub(str, e), "^%s*,%s*()")
+			if not e2 then break end
+			e = e + e2 - 1
+		end
+		
+		if string.match(str, "%s*=", e) and #stacks > 0 and #stacks[1] > 0 then
+			return lcal ~= nil, stacks
+		end
+	end,
+	
+	autocomplete_stack = function(str)
+		-- TODO: support bracket table indexing
+		-- test.test[
+		
+		local e = #str
+		local stack = {}
+		for i = 1, 16 do
+			local e2, s = string.match(string.sub(str, 1, e), i == 1 and "()([%a_]?[%w_]*)%s*$" or "()([%a_][%w_]*)%s*[%.:]%s*$")
+			if not e2 then break end
+			e = e2 - 1
+			stack[#stack + 1] = s
+		end
+		
+		if #stack > 0 then
+			return table.Reverse(stack)
+		end
+	end,
+	
+	autocomplete_insert = function(str, val)
+		return string.sub(str, 1, string.match(str, "()[%a_]?[%w_]*$")) .. val
+	end
 }

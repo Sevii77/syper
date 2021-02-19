@@ -8,6 +8,13 @@ if CLIENT then
 ----------------------------------------
 
 function Mode.prepareMode(mode)
+	-- ext
+	local ext = {}
+	for _, v in ipairs(mode.ext) do
+		ext[v] = true
+	end
+	mode.ext = ext
+	
 	-- indent
 	local indent = {}
 	for _, v in ipairs(mode.indent) do

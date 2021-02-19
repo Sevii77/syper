@@ -1,4 +1,7 @@
 return {
+	name = "Text",
+	ext = {"txt"},
+	
 	indent = {},
 	outdent = {},
 	pair = {},

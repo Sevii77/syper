@@ -1,9 +1,6 @@
 local TOKEN = Syper.TOKEN
 
 return {
-	name = "JSON",
-	ext = {"json"},
-	
 	main = {
 		-- whitespace
 		{"(\n)", TOKEN.Whitespace},

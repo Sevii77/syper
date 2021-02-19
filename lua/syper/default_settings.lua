@@ -8,6 +8,9 @@ return [=[{
 	// Syntax style
 	"style": "monokai",
 	
+	// Autocomplete
+	"autocomplete": true,
+	
 	// Space to keep around the line numbers
 	"gutter_margin": 15,
 	

@@ -138,7 +138,7 @@ function IDE:Init()
 		local typ = Syper.FILEEXTTYPE[ext]
 		if not typ or typ == FT.Generic or typ == FT.Code then
 			local syntax = "text"
-			for s, v in pairs(Syper.Lexer.lexers) do
+			for s, v in pairs(Syper.Mode.modes) do
 				if v.ext[ext] then
 					syntax = s
 					

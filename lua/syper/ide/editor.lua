@@ -736,8 +736,8 @@ function Editor:Init()
 	self.syntax_button.DoClick = function(_)
 		-- TODO: make look better
 		local menu = DermaMenu()
-		for syntax, lexer in pairs(Lexer.lexers) do
-			menu:AddOption(lexer.name, function()
+		for syntax, mode in pairs(Mode.modes) do
+			menu:AddOption(mode.name, function()
 				self:SetSyntax(syntax)
 			end)
 		end
@@ -1228,6 +1228,80 @@ function Editor:OnTextChanged()
 			end
 		end
 		
+		if #self.carets == 1 and settings.autocomplete and self.mode.env then
+			local lines = self.content_data.lines
+			local search = self.mode.autocomplete_stack(lines[self.carets[1].y].str)
+			if search then
+				local tbl = self.mode.env
+				for i = 1, #search - 1 do
+					tbl = tbl[search[i]]
+					if not tbl then break end
+				end
+				
+				if tbl and type(tbl) == "table" then
+					local list = {}
+					
+					local search = string.lower(search[#search])
+					local len = #search
+					for k, _ in pairs(tbl) do
+						if string.lower(string.sub(k, 1, len)) == search then
+							-- print(k)
+							list[#list + 1] = k
+						end
+					end
+					
+					if #list > 0 then
+						-- TODO: fix this mess holy shit
+						local caret = self.carets[1]
+						local x = caret.x
+						local y = caret.y
+						local vy = self:GetVisualLineY(y)
+						if not vy then
+							for y2 = y - 1, 1, -1 do
+								if not lines[y2].fold then
+									x = lines[y2].len
+									y = y2
+									vy = self:GetVisualLineY(y)
+									
+									break
+								end
+							end
+						end
+						
+						local x = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1)))
+						local y = vy * settings.font_size
+						x, y = self.lineholder:LocalToScreen(x, y)
+						
+						if IsValid(self.autocomplete_menu) then
+							self.autocomplete_menu:Remove()
+						end
+						
+						self.autocomplete_menu = DermaMenu(false, self.lineholder)
+						
+						for i, val in ipairs(list) do
+							self.autocomplete_menu:AddOption(val, function()
+								self:RemoveStrAt(caret.x, caret.y, -len, true)
+								self:InsertStrAt(caret.x, caret.y, val, true)
+								self:PushHistoryBlock()
+								self:Rebuild()
+							end)
+						end
+						
+						self.autocomplete_menu:SetMinimumWidth(200)
+						self.autocomplete_menu:Open(x, y, true, self.lineholder)
+						self.autocomplete_menu:SetPos(x, y)
+						self.autocomplete_menu:SetMaxHeight(80)
+					elseif IsValid(self.autocomplete_menu) then
+						self.autocomplete_menu:Remove()
+					end
+				elseif IsValid(self.autocomplete_menu) then
+					self.autocomplete_menu:Remove()
+				end
+			elseif IsValid(self.autocomplete_menu) then
+				self.autocomplete_menu:Remove()
+			end
+		end
+		
 		if settings.indent_smart then
 			local lines = self.content_data.lines
 			for caret_id, caret in ipairs(self.carets) do
@@ -1581,7 +1655,7 @@ end
 function Editor:SetSyntax(syntax)
 	self.lexer = Lexer.lexers[syntax]
 	self.mode = Mode.modes[syntax]
-	self.syntax_button:SetText(Lexer.lexers[syntax].name)
+	self.syntax_button:SetText(Mode.modes[syntax].name)
 	
 	local content = self:GetContentStr()
 	self.content_data = Lexer.createContentTable(self.lexer, self.mode)

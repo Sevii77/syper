@@ -1,9 +1,6 @@
 local TOKEN = Syper.TOKEN
 
 return {
-	name = "Lua",
-	ext = {"lua"},
-	
 	main = {
 		-- shebang
 		{"(#![^\n]*)", TOKEN.Comment, shebang = true},

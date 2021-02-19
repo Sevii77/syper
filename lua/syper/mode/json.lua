@@ -2,6 +2,9 @@ local TOKEN = Syper.TOKEN
 local ignore = {"string"}
 
 return {
+	name = "JSON",
+	ext = {"json"},
+	
 	indent = {
 		{"{", ignore},
 		{"%[", ignore},
