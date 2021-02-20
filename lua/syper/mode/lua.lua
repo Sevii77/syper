@@ -154,7 +154,15 @@ return {
 		local e = #str
 		local stack = {}
 		for i = 1, 16 do
-			local e2, s = string.match(string.sub(str, 1, e), i == 1 and "()([%a_]?[%w_]*)%s*$" or "()([%a_][%w_]*)%s*[%.:]%s*$")
+			local e2, s
+			if i == 1 then
+				e2, s = string.match(string.sub(str, 1, e), "()([%a_][%w_]*)$")
+				if not e2 then
+					e2, s = string.match(string.sub(str, 1, e), "[%.:]%s*()(_?)$")
+				end
+			else
+				e2, s = string.match(string.sub(str, 1, e), "()([%a_][%w_]*)%s*[%.:]%s*$")
+			end
 			if not e2 then break end
 			e = e2 - 1
 			stack[#stack + 1] = s
@@ -163,9 +171,5 @@ return {
 		if #stack > 0 then
 			return table.Reverse(stack)
 		end
-	end,
-	
-	autocomplete_insert = function(str, val)
-		return string.sub(str, 1, string.match(str, "()[%a_]?[%w_]*$")) .. val
 	end
 }

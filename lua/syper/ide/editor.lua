@@ -254,6 +254,7 @@ function Act.newline(self)
 	
 	self:PushHistoryBlock()
 	self:Rebuild()
+	self:HandleAutocomplete()
 end
 
 function Act.indent(self)
@@ -464,6 +465,7 @@ end
 
 function Act.writestr(self, str)
 	self:InsertStr(str)
+	self:HandleAutocomplete()
 end
 
 function Act.delete(self, typ, count_dir)
@@ -526,6 +528,8 @@ function Act.delete(self, typ, count_dir)
 		self:PushHistoryBlock()
 		self:Rebuild()
 	end
+	
+	self:HandleAutocomplete()
 end
 
 function Act.move(self, typ, count_dir, selc)
@@ -954,6 +958,26 @@ function Editor:Init()
 				end
 			end
 		end
+		
+		-- autocomplete
+		local ac = self.autocomplete
+		if ac then
+			local list = ac.list
+			local x, y = self:CharToRenderPos(ac.x, ac.y)
+			
+			surface.SetDrawColor(settings.style_data.gutter_background)
+			surface.DrawRect(x, y, 200, settings.autocomplete_lines * th)
+			
+			surface.SetDrawColor(settings.style_data.gutter_foreground)
+			surface.DrawRect(x, y + (ac.selected - ac.scroll - 1) * th, 200, th)
+			
+			surface.SetFont("syper_syntax_1")
+			surface.SetTextColor(settings.style_data.caret)
+			for i = ac.scroll + 1, math.min(#ac.list, ac.scroll + settings.autocomplete_lines) do
+				surface.SetTextPos(x, y + (i - ac.scroll - 1) * th)
+				surface.DrawText(ac.list[i])
+			end
+		end
 	end
 	
 	self.scrolltarget = 0
@@ -1043,6 +1067,32 @@ function Editor:OnKeyCodeTyped(key)
 	
 	if key == KEY_TAB then
 		self.refocus = true
+	end
+	
+	local ac = self.autocomplete
+	if ac then
+		if key == KEY_UP then
+			ac.selected = ((ac.selected - 2) % #ac.list) + 1
+			ac.scroll = ac.selected == #ac.list and #ac.list - settings.autocomplete_lines or math.min(ac.scroll, ac.selected - 1)
+			
+			self.key_handled = true
+			return
+		elseif key == KEY_DOWN then
+			ac.selected = (ac.selected % #ac.list) + 1
+			ac.scroll = ac.selected == 1 and 0 or math.max(ac.scroll + settings.autocomplete_lines, ac.selected) - settings.autocomplete_lines
+			
+			self.key_handled = true
+			return
+		elseif (settings.autocomplete_tab and key == KEY_TAB) or (not settings.autocomplete_tab and key == KEY_ENTER) then
+			local caret = self.carets[1]
+			self:RemoveStrAt(caret.x, caret.y, -ac.len, true)
+			self:InsertStrAt(caret.x, caret.y, ac.list[ac.selected], true)
+			self:PushHistoryBlock()
+			self:Rebuild()
+			self.autocomplete = nil
+			self.key_handled = true
+			return
+		end
 	end
 	
 	if bind then
@@ -1228,79 +1278,7 @@ function Editor:OnTextChanged()
 			end
 		end
 		
-		if #self.carets == 1 and settings.autocomplete and self.mode.env then
-			local lines = self.content_data.lines
-			local search = self.mode.autocomplete_stack(lines[self.carets[1].y].str)
-			if search then
-				local tbl = self.mode.env
-				for i = 1, #search - 1 do
-					tbl = tbl[search[i]]
-					if not tbl then break end
-				end
-				
-				if tbl and type(tbl) == "table" then
-					local list = {}
-					
-					local search = string.lower(search[#search])
-					local len = #search
-					for k, _ in pairs(tbl) do
-						if string.lower(string.sub(k, 1, len)) == search then
-							-- print(k)
-							list[#list + 1] = k
-						end
-					end
-					
-					if #list > 0 then
-						-- TODO: fix this mess holy shit
-						local caret = self.carets[1]
-						local x = caret.x
-						local y = caret.y
-						local vy = self:GetVisualLineY(y)
-						if not vy then
-							for y2 = y - 1, 1, -1 do
-								if not lines[y2].fold then
-									x = lines[y2].len
-									y = y2
-									vy = self:GetVisualLineY(y)
-									
-									break
-								end
-							end
-						end
-						
-						local x = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1)))
-						local y = vy * settings.font_size
-						x, y = self.lineholder:LocalToScreen(x, y)
-						
-						if IsValid(self.autocomplete_menu) then
-							self.autocomplete_menu:Remove()
-						end
-						
-						self.autocomplete_menu = DermaMenu(false, self.lineholder)
-						
-						for i, val in ipairs(list) do
-							self.autocomplete_menu:AddOption(val, function()
-								self:RemoveStrAt(caret.x, caret.y, -len, true)
-								self:InsertStrAt(caret.x, caret.y, val, true)
-								self:PushHistoryBlock()
-								self:Rebuild()
-							end)
-						end
-						
-						self.autocomplete_menu:SetMinimumWidth(200)
-						self.autocomplete_menu:Open(x, y, true, self.lineholder)
-						self.autocomplete_menu:SetPos(x, y)
-						self.autocomplete_menu:SetMaxHeight(80)
-					elseif IsValid(self.autocomplete_menu) then
-						self.autocomplete_menu:Remove()
-					end
-				elseif IsValid(self.autocomplete_menu) then
-					self.autocomplete_menu:Remove()
-				end
-			elseif IsValid(self.autocomplete_menu) then
-				self.autocomplete_menu:Remove()
-			end
-		end
+		self:HandleAutocomplete()
 		
 		if settings.indent_smart then
 			local lines = self.content_data.lines
@@ -1385,7 +1363,7 @@ function Editor:UpdateScrollbar()
 	
 	local s = self.lineholder_dock:GetTall()
 	local h = s + settings.font_size * (self.content_data:GetUnfoldedLineCount() - 1) + 1
-	self.lineholder:SetSize(self.content_render_width, h)
+	self.lineholder:SetSize(math.max(self.lineholder_dock:GetWide(), self.content_render_width), h)
 	self.scrollbar:SetUp(s, h)
 	
 	-- horizontal scrollbar
@@ -2050,6 +2028,55 @@ function Editor:ScrollToCaret()
 	elseif px >= -self.lineholder_dock.x + self.lineholder_dock:GetWide() - settings.font_size * 2 then
 		self.scrolltarget_h = math.Clamp(px - self.lineholder_dock:GetWide() + settings.font_size * 2, 0, self.scrollbar_h.CanvasSize)
 		self.scrollbar_h:SetScroll(self.scrolltarget_h)
+	end
+end
+
+function Editor:CharToRenderPos(x, y)
+	return surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1))), self:GetVisualLineY(y) * settings.font_size
+end
+
+function Editor:HandleAutocomplete()
+	local x, y
+	if self.autocomplete then
+		x, y = self.autocomplete.x, self.autocomplete.y
+		self.autocomplete = nil
+	end
+	if #self.carets == 1 and settings.autocomplete and self.mode.env then
+		local caret = self.carets[1]
+		local lines = self.content_data.lines
+		local search = self.mode.autocomplete_stack(sub(lines[caret.y].str, 1, caret.x - 1))
+		print(search)
+		if search then
+			local tbl = self.mode.env
+			for i = 1, #search - 1 do
+				tbl = tbl[search[i]]
+				if not tbl then break end
+			end
+			
+			if tbl and type(tbl) == "table" then
+				local list = {}
+				
+				local search = string.lower(search[#search])
+				local len = #search
+				for k, _ in pairs(tbl) do
+					if string.lower(string.sub(k, 1, len)) == search then
+						-- print(k)
+						list[#list + 1] = k
+					end
+				end
+				
+				if #list > 0 then
+					self.autocomplete = {
+						scroll = 0,
+						selected = 1,
+						len = len,
+						x = x or caret.x - 1,
+						y = y or caret.y,
+						list = list
+					}
+				end
+			end
+		end
 	end
 end
 

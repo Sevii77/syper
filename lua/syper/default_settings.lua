@@ -11,6 +11,12 @@ return [=[{
 	// Autocomplete
 	"autocomplete": true,
 	
+	// Amount of lines to show
+	"autocomplete_lines": 5,
+	
+	// Use tab instead of enter
+	"autocomplete_tab": false,
+	
 	// Space to keep around the line numbers
 	"gutter_margin": 15,
 	
