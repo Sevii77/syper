@@ -254,7 +254,6 @@ function Act.newline(self)
 	
 	self:PushHistoryBlock()
 	self:Rebuild()
-	self:HandleAutocomplete()
 end
 
 function Act.indent(self)
@@ -465,7 +464,6 @@ end
 
 function Act.writestr(self, str)
 	self:InsertStr(str)
-	self:HandleAutocomplete()
 end
 
 function Act.delete(self, typ, count_dir)
@@ -528,8 +526,6 @@ function Act.delete(self, typ, count_dir)
 		self:PushHistoryBlock()
 		self:Rebuild()
 	end
-	
-	self:HandleAutocomplete()
 end
 
 function Act.move(self, typ, count_dir, selc)
@@ -634,8 +630,6 @@ function Act.move(self, typ, count_dir, selc)
 			self:SetCaret(caret_id, lines[#lines].len, #lines)
 		end
 	end
-	
-	self:HandleAutocomplete()
 end
 
 function Act.goto_line(self, line)
@@ -1311,8 +1305,6 @@ function Editor:OnTextChanged()
 			end
 		end
 		
-		self:HandleAutocomplete()
-		
 		if settings.indent_smart then
 			local lines = self.content_data.lines
 			for caret_id, caret in ipairs(self.carets) do
@@ -1639,6 +1631,7 @@ function Editor:Rebuild()
 	
 	self:UpdateScrollbar()
 	self:UpdateGutter()
+	self:HandleAutocomplete()
 	
 	for i = 1, #self.carets do
 		self:UpdateCaretInfo(i)
@@ -1865,6 +1858,7 @@ function Editor:SetCaret(i, x, y)
 	self.caretblink = RealTime()
 	self:MarkClearExcessCarets()
 	self:MarkScrollToCaret()
+	self:HandleAutocomplete()
 end
 
 function Editor:MoveCaret(i, x, y)
