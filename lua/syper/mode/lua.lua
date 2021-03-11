@@ -148,9 +148,6 @@ return {
 	end,
 	
 	autocomplete_stack = function(str)
-		-- TODO: support bracket table indexing
-		-- test.test[
-		
 		local e = #str
 		local stack = {}
 		for i = 1, 16 do
@@ -161,7 +158,17 @@ return {
 					e2, s = string.match(string.sub(str, 1, e), "[%.:]%s*()(_?)$")
 				end
 			else
-				e2, s = string.match(string.sub(str, 1, e), "()([%a_][%w_]*)%s*[%.:]%s*$")
+				e2, s = string.match(string.sub(str, 1, e), "()([%a_][%w_]*)%s*[%.:]?%s*$")
+			end
+			if not e2 then
+				e2, s = string.match(string.sub(str, 1, e), "()%[(%d*%.?x?%d*)%]%s*[%.:]?%s*$")
+				if s then s = tonumber(s) end
+			end
+			if not e2 then
+				e2, s = string.match(string.sub(str, 1, e), "()%[\"(.*)\"%]%s*[%.:]?%s*$")
+			end
+			if not e2 then
+				e2, s = string.match(string.sub(str, 1, e), "()%['(.*)'%]%s*[%.:]?%s*$")
 			end
 			if not e2 then break end
 			e = e2 - 1
@@ -171,5 +178,32 @@ return {
 		if #stack > 0 then
 			return table.Reverse(stack)
 		end
+	end,
+	
+	autocomplete = function(pre, key)
+		local typ = type(key)
+		if typ == "string" and string.match(string.sub(key, 1, 1), "[%a_]") then
+			return key, 0
+		end
+		
+		local rem = #string.match(pre, "([^%.%[]*)$")
+		if typ == "number" then
+			return "[" .. tostring(key) .. "]", rem
+		end
+		
+		return "[\"" .. tostring(key) .. "\"]", rem
+	end,
+	
+	livevalue = function(value)
+		local typ = type(value)
+		local val = tostring(value)
+		
+		if typ == "table" then
+			val = table.Count(value) .. " entries"
+		elseif typ == "function" then
+			return val
+		end
+		
+		return typ .. ": " .. val
 	end
 }

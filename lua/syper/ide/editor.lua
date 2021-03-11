@@ -634,6 +634,8 @@ function Act.move(self, typ, count_dir, selc)
 			self:SetCaret(caret_id, lines[#lines].len, #lines)
 		end
 	end
+	
+	self:HandleAutocomplete()
 end
 
 function Act.goto_line(self, line)
@@ -978,6 +980,22 @@ function Editor:Init()
 				surface.DrawText(ac.list[i])
 			end
 		end
+		
+		-- live value
+		local lv = self.livevalue
+		if lv and not ac then
+			local x, y = self:CharToRenderPos(lv.x, lv.y)
+			local w = surface.GetTextSize(lv.str)
+			x, y = x + th, y - th
+			
+			surface.SetDrawColor(settings.style_data.gutter_background)
+			surface.DrawRect(x, y, w + th * 2, th)
+			
+			surface.SetFont("syper_syntax_1")
+			surface.SetTextColor(settings.style_data.caret)
+			surface.SetTextPos(x + th * 1, y)
+			surface.DrawText(lv.str)
+		end
 	end
 	
 	self.scrolltarget = 0
@@ -1071,10 +1089,21 @@ function Editor:OnKeyCodeTyped(key)
 	
 	local ac = self.autocomplete
 	if ac then
-		if key == KEY_UP then
-			ac.selected = ((ac.selected - 2) % #ac.list) + 1
-			ac.scroll = ac.selected == #ac.list and #ac.list - settings.autocomplete_lines or math.min(ac.scroll, ac.selected - 1)
+		if key == KEY_ESCAPE then
+			self.autocomplete = nil
+			self.key_handled = true
 			
+			-- running cancelselect does nothing if main menu is closed
+			-- -- if escape is bound to main menu repress escape
+			-- if input.GetKeyCode(input.LookupBinding("cancelselect")) == KEY_ESCAPE then
+			-- 	RunConsoleCommand("cancelselect")
+			-- end
+			
+			return
+		elseif key == KEY_UP then
+			ac.selected = ((ac.selected - 2) % #ac.list) + 1
+			ac.scroll = ac.selected == #ac.list and math.max(#ac.list - settings.autocomplete_lines, 0) or math.min(ac.scroll, ac.selected - 1)
+			print(ac.selected, ac.scroll)
 			self.key_handled = true
 			return
 		elseif key == KEY_DOWN then
@@ -1085,12 +1114,16 @@ function Editor:OnKeyCodeTyped(key)
 			return
 		elseif (settings.autocomplete_tab and key == KEY_TAB) or (not settings.autocomplete_tab and key == KEY_ENTER) then
 			local caret = self.carets[1]
-			self:RemoveStrAt(caret.x, caret.y, -ac.len, true)
-			self:InsertStrAt(caret.x, caret.y, ac.list[ac.selected], true)
+			local str, len = self.mode.autocomplete(string.sub(self.content_data.lines[caret.y].str, 1, -ac.len - 1), ac.list[ac.selected])
+			self:RemoveStrAt(caret.x, caret.y, -ac.len - len, true)
+			self:InsertStrAt(caret.x, caret.y, str, true)
 			self:PushHistoryBlock()
 			self:Rebuild()
 			self.autocomplete = nil
 			self.key_handled = true
+			
+			self:HandleLiveValue()
+			
 			return
 		end
 	end
@@ -1298,7 +1331,9 @@ function Editor:OnTextChanged()
 					
 					local s = 1
 					while s do
-						s = string.match(lines[lines[caret.y].scope_origin].str, "^" .. tab_str .. "()", s)
+						local sorg = lines[caret.y].scope_origin
+						if sorg == 0 then break end
+						s = string.match(lines[sorg].str, "^" .. tab_str .. "()", s)
 						if s then
 							level_origin = level_origin + 1
 						end
@@ -1976,6 +2011,8 @@ function Editor:UpdateCaretInfo(i)
 	end
 	
 	rawset(caret, "update_info", false)
+	
+	self:HandleLiveValue()
 end
 
 function Editor:MarkScrollToCaret()
@@ -2041,41 +2078,69 @@ function Editor:HandleAutocomplete()
 		x, y = self.autocomplete.x, self.autocomplete.y
 		self.autocomplete = nil
 	end
-	if #self.carets == 1 and settings.autocomplete and self.mode.env then
-		local caret = self.carets[1]
-		local lines = self.content_data.lines
-		local search = self.mode.autocomplete_stack(sub(lines[caret.y].str, 1, caret.x - 1))
-		print(search)
-		if search then
-			local tbl = self.mode.env
-			for i = 1, #search - 1 do
-				tbl = tbl[search[i]]
-				if not tbl then break end
+	
+	if #self.carets > 1 or not self.mode.env then return end
+	if not settings.autocomplete then return end
+	
+	local caret = self.carets[1]
+	local lines = self.content_data.lines
+	local stack = self.mode.autocomplete_stack(sub(lines[caret.y].str, 1, caret.x - 1))
+	if stack then
+		local tbl = self.mode.env
+		for i = 1, #stack - 1 do
+			tbl = tbl[stack[i]]
+			if not tbl then break end
+		end
+		
+		if not tbl or type(tbl) ~= "table" then return end
+		
+		local list = {}
+		local stackn = stack[#stack]
+		local stack = string.lower(stackn)
+		local len = #stack
+		for k, _ in pairs(tbl) do
+			if string.lower(string.sub(k, 1, len)) == stack then
+				-- print(k)
+				list[#list + 1] = k
 			end
-			
-			if tbl and type(tbl) == "table" then
-				local list = {}
-				
-				local search = string.lower(search[#search])
-				local len = #search
-				for k, _ in pairs(tbl) do
-					if string.lower(string.sub(k, 1, len)) == search then
-						-- print(k)
-						list[#list + 1] = k
-					end
-				end
-				
-				if #list > 0 then
-					self.autocomplete = {
-						scroll = 0,
-						selected = 1,
-						len = len,
-						x = x or caret.x - 1,
-						y = y or caret.y,
-						list = list
-					}
-				end
-			end
+		end
+		
+		if #list > 0 and not (#list == 1 and list[1] == stackn) then
+			self.autocomplete = {
+				scroll = 0,
+				selected = 1,
+				len = len,
+				x = x or caret.x - 1,
+				y = y or caret.y,
+				list = list
+			}
+		end
+	end
+end
+
+function Editor:HandleLiveValue()
+	self.livevalue = nil
+	
+	if #self.carets > 1 or not self.mode.env then return end
+	if not settings.livevalueview then return end
+	
+	local caret = self.carets[1]
+	local lines = self.content_data.lines
+	local stack = self.mode.autocomplete_stack(sub(lines[caret.y].str, 1, caret.x - 1))
+	if stack then
+		local val = self.mode.env
+		for i = 1, #stack do
+			if type(val) ~= "table" then return end
+			val = val[stack[i]]
+			if not val then return end
+		end
+		
+		if val then
+			self.livevalue = {
+				x = caret.x,
+				y = caret.y,
+				str = self.mode.livevalue(val)
+			}
 		end
 	end
 end

@@ -8,6 +8,9 @@ return [=[{
 	// Syntax style
 	"style": "monokai",
 	
+	// Show the value of a variable
+	"livevalueview": true,
+	
 	// Autocomplete
 	"autocomplete": true,
 	
