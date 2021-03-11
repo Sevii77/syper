@@ -97,7 +97,7 @@ local function getTabStr(x, line)
 	if settings.tab_spaces then
 		return string.rep(" ", settings.tab_size - ((x - 1) % settings.tab_size))
 	elseif settings.tab_inline_spaces then
-		if string.match(line, "%s*()") == x then
+		if string.match(line, "%s*()") - 1 == x then
 			return "\t"
 		else
 			return string.rep(" ", settings.tab_size - ((x - 1) % settings.tab_size))
