@@ -24,8 +24,8 @@ return [=[{
 	
 	"ctrl+c": {"act": "copy"},
 	"ctrl+x": {"act": "cut"},
-	"ctrl+v": {"act": "paste", "_COMMENT_": "this is just a dummy, cant be changed"},
-	"ctrl+shift+v": {"act": "pasteindent", "_COMMENT_": "partly a dummy, only does the indenting"},
+	"ctrl+v": {"act": "paste"}, // This is just a dummy, cant be changed
+	"ctrl+shift+v": {"act": "pasteindent"}, // Partly a dummy, only does the indenting
 	
 	"enter": {"act": "newline"},
 	"tab": {"act": "indent"},

@@ -10,7 +10,10 @@ return {
 		{"(\")", TOKEN.String, "string"},
 		
 		-- comment
-		{"(%/%/[^\n]*)", TOKEN.Comment},
+		{"(//[^\n]*)", TOKEN.Comment},
+		
+		-- multiline comment
+		{"(/%*)", TOKEN.Comment, "mcomment"},
 		
 		-- number
 		{"(%-?%d*%.%d*[%deE]%-?%d+)", TOKEN.Number},
@@ -34,5 +37,10 @@ return {
 		{"(\n)", TOKEN.Error, "main"},
 		{"([^\"\\\n]+)", TOKEN.String},
 		{"(\\.?)", TOKEN.Error},
+	},
+	
+	mcomment = {
+		{"(.*%*/)", TOKEN.Comment, "main"},
+		{"(.*\n)", TOKEN.Comment},
 	},
 }
