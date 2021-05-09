@@ -23,6 +23,7 @@ return {
 		
 		-- other
 		{"([%[%]{},:])", TOKEN.Punctuation},
+		{"([\128-\255]+)", TOKEN.Error}, -- Special case for unicode since seperating the bytes will cause errors
 		{"(.)", TOKEN.Error},
 	},
 	

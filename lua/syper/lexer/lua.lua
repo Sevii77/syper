@@ -37,7 +37,7 @@ return {
 		{"([%+%-%*/%%^#=~<>]+)", TOKEN.Operator, list = {"+", "-", "*", "/", "%", "^", "#", "==", "~=", "<=", ">=", "<", ">", "="}, list_nomatch = TOKEN.Error},
 		{"(%.%.)", TOKEN.Operator},
 		{"([%a_][%w_]*)", TOKEN.Operator, list = {"and", "or", "not"}},
-		{"(::[%a_][%w_]*::)", TOKEN.Operator},
+		{"(::[%a_\128-\255][%w_\128-\255]*::)", TOKEN.Operator},
 		
 		-- keyword
 		{"([%a_][%w_]*)", TOKEN.Keyword, list = {"break", "do", "else", "elseif", "end", "for", "if", "in", "local", "repeat", "return", "then", "until", "while", "goto"}},
@@ -47,10 +47,10 @@ return {
 		{"(function)", TOKEN.Keyword_Modifier, "func"},
 		
 		-- function call
-		{"([%a_][%w_]*)[%w_.]*[%s]?[%(%{\"']", TOKEN.Callable},
+		{"([%a_\128-\255][%w_\128-\255]*)[%w_.]*[%s]?[%(%{\"']", TOKEN.Callable},
 		
 		-- identifier
-		{"([%a_][%w_]*)", TOKEN.Identifier},
+		{"([%a_\128-\255][%w_\128-\255]*)", TOKEN.Identifier},
 		
 		-- other
 		{"([%(%)%[%]{},%.])", TOKEN.Punctuation},
@@ -84,7 +84,7 @@ return {
 	func = {
 		{"(\n)", TOKEN.Whitespace},
 		{"([^%S\n]+)", TOKEN.Whitespace},
-		{"([%a_]?[%w_]*)[%s\n]*[%.:%(]", TOKEN.Function, "func_punc"},
+		{"([%a_\128-\255]?[%w_\128-\255]*)[%s\n]*[%.:%(]", TOKEN.Function, "func_punc"},
 		{"([^\n]+\n)", TOKEN.Error, "main"}
 		-- {"([%a_][%w_]*)%s*\n", TOKEN.Error, "main"}
 	},
@@ -99,7 +99,7 @@ return {
 	func_arg = {
 		{"(\n)", TOKEN.Whitespace},
 		{"([^%S\n]+)", TOKEN.Whitespace},
-		{"([%a_][%w_]*)", TOKEN.Argument},
+		{"([%a_\128-\255][%w_\128-\255]*)", TOKEN.Argument},
 		{"(%.%.%.)", TOKEN.Argument},
 		{"(%))", TOKEN.Punctuation, "main"},
 		{"(,)", TOKEN.Punctuation},

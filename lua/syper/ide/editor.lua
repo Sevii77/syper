@@ -8,10 +8,11 @@ local TOKEN = Syper.TOKEN
 local editors = {}
 
 local settings
-local len, sub, ignore_chars, tab_str, tab_strsize
+local utf8enabled, len, sub, ignore_chars, tab_str, tab_strsize
 local function settingsUpdate(s)
 	settings = s
 	
+	utf8enabled = settings.utf8
 	len = settings.utf8 and utf8.len or string.len
 	sub = settings.utf8 and utf8.sub or string.sub
 	
@@ -108,8 +109,15 @@ local function getTabStr(x, line)
 end
 
 local function matchWord(str, x)
-	local s, e = string.match(sub(str, 1, x), "()[%w_]*$"), (string.match(sub(str, x), "^[%w_]*()") + x - 1)
-	return s, e, sub(str, s, e)
+	local s, e = string.match(sub(str, 1, x), "()[%w_\128-\255]*$"), string.match(sub(str, x), "^[%w_\128-\255]*()") + string.len(sub(str, 1, x - 1))
+	
+	if not utf8enabled then
+		return s, e, sub(str, s, e)
+	else
+		local word = string.sub(str, s, e - 1)
+		local s = len(string.sub(str, 1, s - 1))
+		return s + 1, s + len(word) + 1, word
+	end
 end
 
 ----------------------------------------
