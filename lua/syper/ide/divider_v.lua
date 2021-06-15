@@ -13,6 +13,7 @@ function Divider:Init()
 	self.holding = false
 	self.hold_offset = 0
 	
+	self.min_size = 50
 	self.stick = 1
 	
 	self:SetCursor("sizens")
@@ -37,6 +38,8 @@ function Divider:PerformLayout(w, h)
 		elseif self.stick == 2 then
 			self.div_pos = self.div_pos - div
 		end
+		
+		self.div_pos = math.Clamp(self.div_pos, self.min_size, h - self.min_size - self.div_size)
 	end
 	self.last_h = h
 	

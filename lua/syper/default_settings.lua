@@ -27,8 +27,7 @@ return [=[{
 	"gutter_relative": false,
 	
 	// Format of folded lines
-	"fold_format": "[%d]",
-	// " ··· "
+	"fold_format": "[%d]", // " ··· "
 	
 	// Tab size
 	"tab_size": 4,
@@ -54,7 +53,7 @@ return [=[{
 	// Automaticly insert closing brackets
 	"auto_closing_bracket": true,
 	
-	// UTF-8 support, recommended to keep disabled as it is very performance heavy and only effects caret movement and deletement.
+	// UTF-8 support, only effects caret movement and deletement, can be performance heavy on long lines and deleting big chunks (TODO: fix).
 	"utf8": false,
 	
 	// Display controll characters as their hex value <0x10>

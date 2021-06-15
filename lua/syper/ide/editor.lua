@@ -1105,7 +1105,7 @@ function Editor:OnKeyCodeTyped(key)
 		elseif key == KEY_UP then
 			ac.selected = ((ac.selected - 2) % #ac.list) + 1
 			ac.scroll = ac.selected == #ac.list and math.max(#ac.list - settings.autocomplete_lines, 0) or math.min(ac.scroll, ac.selected - 1)
-			print(ac.selected, ac.scroll)
+			
 			self.key_handled = true
 			return
 		elseif key == KEY_DOWN then
@@ -1114,7 +1114,7 @@ function Editor:OnKeyCodeTyped(key)
 			
 			self.key_handled = true
 			return
-		elseif (settings.autocomplete_tab and key == KEY_TAB) or (not settings.autocomplete_tab and key == KEY_ENTER) then
+		elseif ((settings.autocomplete_tab and key == KEY_TAB) or (not settings.autocomplete_tab and key == KEY_ENTER)) and not self:HasSelection() then
 			local caret = self.carets[1]
 			local str, len = self.mode.autocomplete(string.sub(self.content_data.lines[caret.y].str, 1, -ac.len - 1), ac.list[ac.selected])
 			self:RemoveStrAt(caret.x, caret.y, -ac.len - len, true)
@@ -1987,6 +1987,8 @@ function Editor:UpdateCaretInfo(i)
 		
 		ex = ex - 1
 		
+		surface.SetFont("syper_syntax_1")
+		
 		if sy == ey then
 			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
 			local str = getRenderStringSelected(sub(lines[sy].str, sx, ex))
@@ -2239,6 +2241,7 @@ function Editor:RemoveSelection()
 	self:Rebuild()
 end
 
+-- TODO: removing large chucks with utf8 enabled will result in lag
 function Editor:RemoveStrAt(x, y, length, do_history)
 	if not self.editable then return end
 	
