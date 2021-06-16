@@ -194,7 +194,7 @@ function TabHandler:FocusNextChild(cur_focus)
 	end
 end
 
-function TabHandler:AddTab(name, panel, index)
+function TabHandler:AddTab(name, panel, index, dont_active)
 	local tab = self:Add("SyperTab")
 	tab:Setup(self, name, panel)
 	if index then
@@ -211,7 +211,13 @@ function TabHandler:AddTab(name, panel, index)
 		panel = panel
 	})
 	
-	self:SetActive(index)
+	if not dont_active then
+		self:SetActive(index)
+	end
+	
+	Syper.IDE:SaveSession()
+	
+	return self.tabs[index]
 end
 
 function TabHandler:RemoveTab(index, keep_panel)
@@ -231,11 +237,14 @@ function TabHandler:RemoveTab(index, keep_panel)
 			self:OnTabPress(self.tabs[self.active_tab])
 		end
 	end
+	
+	Syper.IDE:SaveSession()
 end
 
 function TabHandler:RenameTab(index, name)
 	self.tabs[index].name = name
 	self.tabs[index].tab.name = name
+	Syper.IDE:SaveSession()
 end
 
 function TabHandler:GetIndex(panel)
@@ -260,6 +269,7 @@ function TabHandler:SetActive(index)
 	end
 	
 	self:InvalidateLayout()
+	Syper.IDE:SaveSession()
 end
 
 function TabHandler:GetActive()
@@ -280,6 +290,7 @@ function TabHandler:SetActivePanel(panel)
 	end
 	
 	self:InvalidateLayout()
+	Syper.IDE:SaveSession()
 end
 
 function TabHandler:GetActivePanel()

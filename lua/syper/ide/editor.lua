@@ -1078,6 +1078,8 @@ end
 function Editor:OnKeyCodeTyped(key)
 	if key == 0 then return end
 	
+	Syper.IDE:SaveSession()
+	
 	local bind = Settings.lookupBind(
 		input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL),
 		input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT),
@@ -1140,7 +1142,7 @@ function Editor:OnKeyCodeTyped(key)
 		end
 	end
 	
-	if self.ide:OnKeyCodeTyped(key) then
+	if Syper.IDE:OnKeyCodeTyped(key) then
 		self.key_handled = true
 	end
 end
@@ -1170,7 +1172,7 @@ function Editor:OnMousePressed(key)
 	
 	self.last_click = RealTime()
 	
-	return self.ide:OnMousePressed(key)
+	return Syper.IDE:OnMousePressed(key)
 end
 
 function Editor:OnMouseReleased(key)
@@ -1191,6 +1193,8 @@ function Editor:OnMouseReleased(key)
 		end
 	end
 	self.on_mouse_release = n
+	
+	Syper.IDE:SaveSession()
 end
 
 function Editor:OnCursorMoved(x, y)
@@ -1207,6 +1211,8 @@ function Editor:OnMouseWheeled(delta, horizontal)
 	else
 		self:DoScroll(-delta * settings.font_size * settings.scroll_multiplier)
 	end
+	
+	Syper.IDE:SaveSession()
 end
 
 function Editor:OnTextChanged()
@@ -1545,6 +1551,51 @@ function Editor:Redo()
 	self:Rebuild()
 end
 
+function Editor:GetSessionState()
+	local carets = {}
+	for i, caret in ipairs(self.carets) do
+		carets[i] = {caret.x, caret.y, caret.select_x, caret.select_y}
+	end
+	
+	return {
+		name = self:GetName(),
+		path = {self.path, self.root_path},
+		syntax = self.syntax,
+		editable = self.editable,
+		content = self:GetContentStr(),
+		scroll = {self.scrollbar_h:GetScroll(), self.scrollbar:GetScroll()},
+		carets = carets
+	}
+end
+
+function Editor:SetSessionState(state)
+	self:SetName(state.name)
+	self:SetPath(state.path[1], state.path[2])
+	self:SetSyntax(state.syntax)
+	self:SetEditable(state.editable)
+	self:SetContent(state.content)
+	
+	-- doesnt work and i have no clue why, TODO: fix that
+	self.scrollbar_h:SetScroll(state.scroll[1])
+	self.scrollbar:SetScroll(state.scroll[2])
+	
+	self.carets = {}
+	for i, caret in ipairs(state.carets) do
+		self:AddCaret(unpack(caret))
+		self:UpdateCaretInfo(i)
+	end
+	
+	self.scroll_to_caret = false
+end
+
+function Editor:GetName()
+	return "TODO"
+end
+
+function Editor:SetName()
+	
+end
+
 function Editor:GetContentStr()
 	local str = {}
 	for i = 1, self.content_data:GetLineCount() do
@@ -1667,6 +1718,7 @@ function Editor:HasSelection()
 end
 
 function Editor:SetSyntax(syntax)
+	self.syntax = syntax
 	self.lexer = Lexer.lexers[syntax]
 	self.mode = Mode.modes[syntax]
 	self.syntax_button:SetText(Mode.modes[syntax].name)
@@ -1678,10 +1730,6 @@ end
 
 function Editor:SetEditable(state)
 	self.editable = state
-end
-
-function Editor:SetIDE(ide)
-	self.ide = ide
 end
 
 function Editor:ClearCarets()
@@ -1786,13 +1834,13 @@ function Editor:GetCursorAsY()
 	return math.Clamp(self:GetRealLineY(math.floor((select(2, self.lineholder_dock:LocalCursorPos()) + self.scrollbar.Scroll) / settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
 end
 
-function Editor:AddCaret(x, y)
+function Editor:AddCaret(x, y, select_x, select_y)
 	self.carets[#self.carets + 1] = setmetatable({
 		x = x,
 		y = y,
 		max_x = x,
-		select_x = nil,
-		select_y = nil,
+		select_x = select_x,
+		select_y = select_y,
 		update_info = false,
 		new = true
 	}, {
@@ -2160,6 +2208,7 @@ end
 
 function Editor:InsertStrAt(x, y, str, do_history)
 	if not self.editable then return end
+	Syper.IDE:SaveSession()
 	
 	if do_history then
 		self:AddHistory({Editor.RemoveStrAt, Editor.InsertStrAt, x, y, len(str), str})
@@ -2244,6 +2293,7 @@ end
 -- TODO: removing large chucks with utf8 enabled will result in lag
 function Editor:RemoveStrAt(x, y, length, do_history)
 	if not self.editable then return end
+	Syper.IDE:SaveSession()
 	
 	local cd = self.content_data
 	local rem = {}

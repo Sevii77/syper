@@ -243,3 +243,79 @@ function Settings.loadSettings()
 end
 
 Settings.loadSettings()
+
+----------------------------------------
+-- IDE Session
+
+if not file.Exists("syper/session.json", "DATA") then
+	file.Write("syper/session.json", "{}")
+end
+
+function Settings.saveSession(ide)
+	local session = {}
+	
+	do -- IDE
+		session.x, session.y = ide:GetPos()
+		session.w, session.h = ide:GetSize()
+	end
+	
+	do -- Filetree
+		local directories = {}
+		for i, node in ipairs(ide.filetree.folders) do
+			directories[i] = {node.path, node.root_path}
+		end
+		
+		session.directories = directories
+		session.tree_width = ide.filetree_div.div_pos
+	end
+	
+	do -- Tabs
+		local tabs = {}
+		for i, tab in ipairs(ide.tabhandler.tabs) do
+			tabs[i] = {
+				name = tab.name,
+				type = tab.panel.ClassName,
+				state = tab.panel:GetSessionState()
+			}
+		end
+		
+		session.tabs = tabs
+		session.active_tab = ide.tabhandler:GetActive()
+	end
+	
+	file.Write("syper/session.json", util.TableToJSON(session))
+end
+
+function Settings.loadSession(ide)
+	local session = util.JSONToTable(file.Read("syper/session.json", "DATA"))
+	
+	do -- IDE
+		local x, y = math.min(session.x or 0, ScrW() - 640), math.min(session.y or 0, ScrH() - 480)
+		ide:SetPos(x, y)
+		ide:SetSize(math.min(session.w or 640, ScrW() - x), math.min(session.h or 480, ScrH() - y))
+	end
+	
+	do -- Filetree
+		local filetree = ide.filetree
+		filetree:Clear()
+		
+		for i, path in ipairs(session.directories or {}) do
+			filetree:AddDirectory(umpack(path))
+		end
+		
+		ide.filetree_div.div_pos = session.tree_width or 100
+	end
+	
+	do -- Tabs
+		local tabhandler = ide.tabhandler
+		for i, tab in ipairs(session.tabs or {}) do
+			local panel = vgui.Create(tab.type)
+			local t = tabhandler:AddTab(tab.name, panel, i, session.active_tab ~= i)
+			tabhandler:PerformLayoutTab(t, tabhandler:GetWide(), tabhandler:GetTall())
+			
+			panel:SetSessionState(tab.state)
+		end
+	end
+	
+	ide:InvalidateChildren(true)
+end

@@ -413,6 +413,8 @@ function Tree:AddFolder(name, path, root_path)
 	
 	self.folders[#self.folders + 1] = node
 	
+	Syper.IDE:SaveSession()
+	
 	return node
 end
 
@@ -437,6 +439,20 @@ function Tree:AddDirectory(path, root_path)
 	end
 	
 	return node
+end
+
+function Tree:RemoveDirectory(path, root_path)
+	path = string.sub(path, -1, -1) == "/" and path or path .. "/"
+	root_path = root_path or "DATA"
+	
+	for i, node in ipairs(self.folders) do
+		if node.path == path and node.root_path == root_path then
+			node:Remove()
+			table.remove(self.folders, i)
+			
+			return
+		end
+	end
 end
 
 function Tree:Refresh(path, root_path, recursive)
@@ -478,6 +494,14 @@ function Tree:Refresh(path, root_path, recursive)
 			end
 		end
 	end
+end
+
+function Tree:Clear()
+	for i, node in ipairs(self.folders) do
+		node:Remove()
+	end
+	
+	self.folders = {}
 end
 
 vgui.Register("SyperTree", Tree, "SyperBase")

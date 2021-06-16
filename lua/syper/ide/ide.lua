@@ -28,7 +28,7 @@ local Act = {}
 
 function Act.save(self, force_browser)
 	local panel = vgui.GetKeyboardFocus()
-	if not panel or not IsValid(panel) or panel:GetName() ~= "SyperEditor" then return end
+	if not panel or not IsValid(panel) or panel.ClassName ~= "SyperEditor" then return end
 	
 	self:Save(panel, force_browser)
 end
@@ -100,192 +100,87 @@ local IDE = {Act = Act}
 
 function IDE:Init()
 	DFrame = DFrame or vgui.GetControlTable("DFrame")
-	-- TODO: make custom, this shit ugly af
-	self.bar = self:Add("DMenuBar")
-	self.bar:Dock(TOP)
 	
-	self.tabhandler = self:Add("SyperTabHandler")
+	self.last_save = CurTime()
 	
-	self.filetree = self:Add("SyperTree")
-	self.filetree:AddDirectory("syper/")
-	self.filetree:AddDirectory("addons/syper/", "MOD")
-	self.filetree:AddDirectory("luapad/").ext_override = {txt = "lua"}
-	self.filetree:AddDirectory("starfall/").ext_override = {txt = "lua"}
-	self.filetree:AddDirectory("sf_filedata/")
-	self.filetree:AddDirectory("expression2/").ext_override = {txt = "expression2"}
-	self.filetree:AddDirectory("e2files/")
-	self.filetree.OnNodePress = function(_, node)
-		local tabhandler = self:GetActiveTabHandler()
-		for i, tab in ipairs(tabhandler.tabs) do
-			if tab.panel.path == node.path then
-				tabhandler:SetActive(i)
-				
-				return
-			end
-		end
+	self:SetSizable(true)
+	self:SetTitle("Syper")
+	self:SetMinWidth(640)
+	self:SetMinWidth(480)
+	
+	do
+		self.bar = self:Add("DMenuBar")
+		self.bar:Dock(TOP)
 		
-		-- good enough ext grabbing for now
-		local root = node
-		while root.parent do
-			root = root.parent
-		end
-		
-		local ext = node.ext
-		if root.ext_override then
-			ext = root.ext_override[ext] or ext
-		end
-		
-		local typ = Syper.FILEEXTTYPE[ext]
-		if not typ or typ == FT.Generic or typ == FT.Code then
-			local syntax = "text"
-			for s, v in pairs(Syper.Mode.modes) do
-				if v.ext[ext] then
-					syntax = s
-					
-					break
-				end
-			end
-			
+		local file = self.bar:AddMenu("File")
+		file:AddOption("New", function()
 			local editor = self:Add("SyperEditor")
-			editor:SetIDE(self)
-			editor:SetSyntax(syntax)
-			editor:SetPath(node.path, node.root_path)
-			editor:ReloadFile()
-			self:AddTab(node.name, editor)
-		elseif typ == FT.Image then
-			local viewer = self:Add("SyperHTML")
-			viewer:OpenImg(node.path)
-			self:AddTab(node.name, viewer)
-		elseif typ == FT.Video then
-			local viewer = self:Add("SyperHTML")
-			viewer:OpenVideo(node.path)
-			self:AddTab(node.name, viewer)
-		elseif typ == FT.Audio then
-			local viewer = self:Add("SyperHTML")
-			viewer:OpenAudio(node.path)
-			self:AddTab(node.name, viewer)
-		end
-	end
-	
-	self.tabhandler.OnTabPress = function(_, tab)
-		if not tab or not tab.panel.root_path or not tab.panel.path then
-			self.filetree:Select(nil, true)
+			editor:SetSyntax("text")
+			editor:SetContent("")
+			self:AddTab("untitled", editor)
+		end)
+		
+		local config = self.bar:AddMenu("Config")
+		config:AddOption("Keybinds", function()
+			local def = self:Add("SyperEditor")
+			def:SetSyntax("json")
+			def:SetContent(include("syper/default_binds.lua"))
+			def:SetEditable(false)
 			
-			return
-		end
-		
-		local node = self.filetree.nodes_lookup[tab.panel.root_path][tab.panel.path]
-		if not self.filetree.selected[node] then
-			self.filetree:Select(node, true)
-		end
-		
-		while node do
-			node:Expand(true)
-			node = node.parent
-		end
+			local conf = self:Add("SyperEditor")
+			conf:SetSyntax("json")
+			conf:SetPath("syper/keybinds.json")
+			conf:ReloadFile()
+			
+			local div = self:Add("SyperHDivider")
+			div:SetLeft(def)
+			div:SetRight(conf)
+			self:AddTab("Keybinds", div)
+			div:CenterDiv()
+		end)
+		config:AddOption("Settings", function()
+			local def = self:Add("SyperEditor")
+			def:SetSyntax("json")
+			def:SetContent(include("syper/default_settings.lua"))
+			def:SetEditable(false)
+			
+			local conf = self:Add("SyperEditor")
+			conf:SetSyntax("json")
+			conf:SetPath("syper/settings.json")
+			conf:ReloadFile()
+			
+			local div = self:Add("SyperHDivider")
+			div:SetLeft(def)
+			div:SetRight(conf)
+			self:AddTab("Settings", div)
+			div:CenterDiv()
+		end)
 	end
 	
-	self.div = self:Add("SyperHDivider")
-	self.div:Dock(FILL)
-	self.div:SetLeft(self.filetree)
-	self.div:SetRight(self.tabhandler)
-	self.div:StickLeft()
+	do
+		self.tabhandler = self:Add("SyperTabHandler")
+	end
 	
-	local file = self.bar:AddMenu("File")
-	file:AddOption("New", function()
-		local editor = self:Add("SyperEditor")
-		editor:SetIDE(self)
-		editor:SetSyntax("text")
-		editor:SetContent("")
-		self:AddTab("untitled", editor)
-	end)
-	file:AddOption("Test", function()
-		local e1 = self:Add("SyperEditor")
-		e1:SetIDE(self)
-		e1:SetSyntax("lua")
-		e1:SetContent("-- 1")
-		
-		local e2 = self:Add("SyperEditor")
-		e2:SetIDE(self)
-		e2:SetSyntax("lua")
-		e2:SetContent("-- 2")
-		
-		local e3 = self:Add("SyperEditor")
-		e3:SetIDE(self)
-		e3:SetSyntax("lua")
-		e3:SetContent("-- 3")
-		
-		local e4 = self:Add("SyperEditor")
-		e4:SetIDE(self)
-		e4:SetSyntax("lua")
-		e4:SetContent("-- 4")
-		
-		local div1 = self:Add("SyperHDivider")
-		div1:SetLeft(e1)
-		div1:SetRight(e2)
-		
-		local div2 = self:Add("SyperHDivider")
-		div2:SetLeft(e3)
-		div2:SetRight(e4)
-		
-		local div = self:Add("SyperVDivider")
-		div:SetTop(div1)
-		div:SetBottom(div2)
-		
-		self:AddTab("Test", div)
-		div:CenterDiv()
-		div1:CenterDiv()
-		div2:CenterDiv()
-	end)
+	do
+		self.filetree = self:Add("SyperTree")
+	end
 	
-	local config = self.bar:AddMenu("Config")
-	config:AddOption("Keybinds", function()
-		local def = self:Add("SyperEditor")
-		def:SetIDE(self)
-		def:SetSyntax("json")
-		def:SetContent(include("syper/default_binds.lua"))
-		def:SetEditable(false)
-		
-		local conf = self:Add("SyperEditor")
-		conf:SetIDE(self)
-		conf:SetSyntax("json")
-		conf:SetPath("syper/keybinds.json")
-		conf:ReloadFile()
-		conf.OnSave = function()
-			Settings.loadBinds()
-		end
-		
-		local div = self:Add("SyperHDivider")
-		div:SetLeft(def)
-		div:SetRight(conf)
-		self:AddTab("Keybinds", div)
-		div:CenterDiv()
-	end)
-	config:AddOption("Settings", function()
-		local def = self:Add("SyperEditor")
-		def:SetIDE(self)
-		def:SetSyntax("json")
-		def:SetContent(include("syper/default_settings.lua"))
-		def:SetEditable(false)
-		
-		local conf = self:Add("SyperEditor")
-		conf:SetIDE(self)
-		conf:SetSyntax("json")
-		conf:SetPath("syper/settings.json")
-		conf:ReloadFile()
-		conf.OnSave = function()
-			Settings.loadSettings()
-		end
-		
-		local div = self:Add("SyperHDivider")
-		div:SetLeft(def)
-		div:SetRight(conf)
-		self:AddTab("Settings", div)
-		div:CenterDiv()
-	end)
+	self.filetree_div = self:Add("SyperHDivider")
+	self.filetree_div:Dock(FILL)
+	self.filetree_div:StickLeft()
+	self.filetree_div:SetLeft(self.filetree)
+	self.filetree_div:SetRight(self.tabhandler)
 end
 
 function IDE:Paint(w, h)
+	local time = CurTime()
+	if self.save_session_time and (self.save_session_time < time or self.last_save < time - 300) then
+		Settings.saveSession(self)
+		
+		self.save_session_time = nil
+		self.last_save = time
+	end
+	
 	surface.SetDrawColor(settings.style_data.ide_ui)
 	surface.DrawRect(0, 0, w, h)
 	
@@ -380,6 +275,14 @@ function IDE:Save(panel, force_browser)
 		browser(err == 4)
 	else
 		self.filetree:Refresh(panel.path, panel.root_path)
+		
+		if panel.root_path == "DATA" then
+			if panel.path == "syper/keybinds.json" then
+				Settings.loadBinds()
+			elseif panel.path == "syper/settings.json" then
+				Settings.loadSettings()
+			end
+		end
 	end
 end
 
@@ -523,15 +426,26 @@ function IDE:ConfirmPanel(text, cancel_func, confirm_func)
 	frame:MakePopup()
 end
 
+function IDE:SaveSession()
+	self.save_session_time = CurTime() + 1
+end
+
 vgui.Register("SyperIDE", IDE, "DFrame")
 
 ----------------------------------------
 
 function Syper.OpenIDE()
+	if IsValid(Syper.IDE) then
+		Syper.IDE:Show()
+		
+		return
+	end
+	
 	local ide = vgui.Create("SyperIDE")
-	ide:SetSizable(true)
-	-- ide:SetSize(640, 480)
-	ide:SetSize(1500, 800)
-	-- ide:Center()
+	ide:SetDeleteOnClose(false)
 	ide:MakePopup()
+	
+	Syper.IDE = ide
+	
+	Settings.loadSession(ide)
 end

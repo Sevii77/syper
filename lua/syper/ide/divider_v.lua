@@ -27,6 +27,11 @@ end
 function Divider:PerformLayout(w, h)
 	if not self.bottom then return end
 	if not self.top then return end
+	if self.first == nil then
+		self.first = true
+		
+		return
+	end
 	
 	if self.last_h then
 		local div = self.last_h - h
@@ -91,6 +96,7 @@ function Divider:OnMouseReleased(key)
 	
 	self.holding = false
 	self:MouseCapture(false)
+	Syper.IDE:SaveSession()
 end
 
 function Divider:SetColor(clr)
@@ -128,6 +134,28 @@ end
 
 function Divider:StickTop()
 	self.stick = 2
+end
+
+function Divider:GetSessionState()
+	return {
+		pos = self.div_pos,
+		top = self.top.ClassName,
+		top_state = self.top:GetSessionState(),
+		bottom = self.bottom.ClassName,
+		bottom_state = self.bottom:GetSessionState()
+	}
+end
+
+function Divider:SetSessionState(state)
+	self.div_pos = state.pos
+	
+	local top = vgui.Create(state.top)
+	top:SetSessionState(state.top_state)
+	self:SetTop(top)
+	
+	local bottom = vgui.Create(state.bottom)
+	bottom:SetSessionState(state.bottom_state)
+	self:SetBottom(bottom)
 end
 
 vgui.Register("SyperVDivider", Divider, "SyperBase")
