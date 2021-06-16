@@ -150,7 +150,7 @@ end
 function Browser:ModeOpen()
 	self:SetTitle((self.allow_folders and self.allow_files) and "Open" or (self.allow_folders and "Open Folder" or "Open File"))
 	self.mode_save = false
-	self.name_entry:SetVisible(false)
+	self.name_entry:SetVisible(true)
 	self.confirm:SetText("Open")
 	self.confirm.DoClick = function()
 		self:Remove()
@@ -209,6 +209,7 @@ function Browser:SetPath(path)
 		node:SetText("[DIR] " .. dir)
 		node.DoClick = function(_)
 			selected = _
+			self.name_entry:SetText(dir)
 			if not self.mode_save then
 				self.confirm:SetEnabled(self.allow_folders)
 			end

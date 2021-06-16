@@ -300,7 +300,7 @@ function Settings.loadSession(ide)
 		filetree:Clear()
 		
 		for i, path in ipairs(session.directories or {}) do
-			filetree:AddDirectory(umpack(path))
+			filetree:AddDirectory(unpack(path))
 		end
 		
 		ide.filetree_div.div_pos = session.tree_width or 100

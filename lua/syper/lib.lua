@@ -70,3 +70,31 @@ function Syper.validPath(path)
 	
 	return true
 end
+
+local ext_overrides = {}
+function Syper.SyntaxFromPath(path)
+	local s = string.Split(path, "/")
+	local ext = string.match(s[#s], "([^%.]+)$")
+	
+	for p, v in pairs(ext_overrides) do
+		if string.sub(path, 1, #p) == p and (not ext or ext == v[1]) then
+			return v[2]
+		end
+	end
+	
+	for mode, exts in pairs(Syper.Mode.modes) do
+		for e, _ in pairs(exts.ext) do
+			if ext == e then
+				return mode
+			end
+		end
+	end
+	
+	return "text"
+end
+
+function Syper.SyntaxExtensionPathOverride(path, ext, syntax)
+	ext_overrides[path] = {ext, syntax}
+end
+
+Syper.SyntaxExtensionPathOverride("starfall/", "txt", "lua")

@@ -1610,8 +1610,8 @@ end
 function Editor:Save()
 	if not self.path then return false, 1 end
 	if self.root_path ~= "DATA" then return false, 2 end
-	if file.IsDir(self.path, "DATA") then return false, 3 end
 	if string.sub(self.path, -1, -1) == "/" then return false, 4 end
+	if file.IsDir(self.path, "DATA") then return false, 3 end
 	if not Syper.validPath(self.path) then return false, 5 end
 	
 	local dirs, p = {}, 1

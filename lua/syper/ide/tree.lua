@@ -103,6 +103,24 @@ function Node:OnMousePressed(key)
 	if key == MOUSE_RIGHT and self.root_path == "DATA" then
 		-- TODO: make not look shit
 		local menu = DermaMenu()
+		if self.is_folder then
+			menu:AddOption("New File", function()
+				local ide = self.tree:FindIDE()
+				local editor = ide:Add("SyperEditor")
+				editor:SetSyntax(Syper.SyntaxFromPath(self.path))
+				editor:SetContent("")
+				editor:SetPath(self.path, "DATA")
+				ide:AddTab("untitled", editor)
+			end)
+			menu:AddOption("New Folder", function()
+				self.tree:FindIDE():TextEntry("New Folder", "", function(text)
+					file.CreateDir(self.path .. text)
+					self:Refresh()
+				end, function(text)
+					return #text > 0 and not file.Exists(self.path .. text, "DATA")
+				end)
+			end)
+		end
 		menu:AddOption("Rename", function()
 			self.tree:FindIDE():Rename(self.path)
 		end)
@@ -116,6 +134,11 @@ function Node:OnMousePressed(key)
 			
 			self.tree:FindIDE():Delete(paths)
 		end)
+		if self.main_directory then
+			menu:AddOption("Remove From Project", function()
+				self.tree:RemoveDirectory(self.path, self.path_root)
+			end)
+		end
 		menu:Open()
 	end
 end
@@ -182,7 +205,7 @@ function Node:Refresh(recursive)
 			self.tree:InvalidateLayout()
 		else
 			local node = self:AddNode(name, true)
-			node:SetPath(self.path .. name, self.root_path)
+			node:SetPath(self.path .. name .. "/", self.root_path)
 			node:AddDirectory()
 			reorder = true
 			self.tree:InvalidateLayout()
@@ -424,11 +447,12 @@ function Tree:AddDirectory(path, root_path)
 	root_path = root_path or "DATA"
 	
 	local node = self:AddFolder(name, path, root_path)
+	node.main_directory = true
 	
 	local files, dirs = file.Find(path .. "*", root_path)
 	for _, dir in ipairs(dirs) do
 		local n = node:AddNode(dir, true)
-		n:SetPath(path .. dir, root_path)
+		n:SetPath(path .. dir .. "/", root_path)
 		n:AddDirectory()
 	end
 	
@@ -450,9 +474,11 @@ function Tree:RemoveDirectory(path, root_path)
 			node:Remove()
 			table.remove(self.folders, i)
 			
-			return
+			break
 		end
 	end
+	
+	self:InvalidateLayout()
 end
 
 function Tree:Refresh(path, root_path, recursive)
@@ -494,6 +520,8 @@ function Tree:Refresh(path, root_path, recursive)
 			end
 		end
 	end
+	
+	self:InvalidateLayout()
 end
 
 function Tree:Clear()

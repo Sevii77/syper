@@ -113,48 +113,83 @@ function IDE:Init()
 		self.bar:Dock(TOP)
 		
 		local file = self.bar:AddMenu("File")
-		file:AddOption("New", function()
-			local editor = self:Add("SyperEditor")
-			editor:SetSyntax("text")
-			editor:SetContent("")
-			self:AddTab("untitled", editor)
-		end)
+		do
+			file:AddOption("New File", function()
+				local editor = self:Add("SyperEditor")
+				editor:SetSyntax("text")
+				editor:SetContent("")
+				self:AddTab("untitled", editor)
+			end)
+			file:AddOption("Open File", function()
+				local browser = vgui.Create("SyperBrowser")
+				local x, y = self:LocalToScreen(self:GetWide() / 2, self:GetTall() / 2)
+				browser:SetPos(x - 240, y - 180)
+				browser:SetSize(480, 360)
+				browser:MakePopup()
+				browser.allow_folders = false
+				browser:ModeOpen()
+				browser:SetPath("/")
+				browser.OnConfirm = function(_, path)
+					local editor = self:Add("SyperEditor")
+					editor:SetSyntax(Syper.SyntaxFromPath(path))
+					editor:SetPath(path)
+					editor:ReloadFile()
+					self:AddTab(string.match(path, "([^/]*)$"), editor)
+				end
+			end)
+			file:AddOption("Open Folder", function()
+				local browser = vgui.Create("SyperBrowser")
+				local x, y = self:LocalToScreen(self:GetWide() / 2, self:GetTall() / 2)
+				browser:SetPos(x - 240, y - 180)
+				browser:SetSize(480, 360)
+				browser:MakePopup()
+				browser.allow_files = false
+				browser:ModeOpen()
+				browser:SetPath("/")
+				browser.OnConfirm = function(_, path)
+					self.filetree:AddDirectory(path)
+					self.filetree:InvalidateLayout()
+				end
+			end)
+		end
 		
 		local config = self.bar:AddMenu("Config")
-		config:AddOption("Keybinds", function()
-			local def = self:Add("SyperEditor")
-			def:SetSyntax("json")
-			def:SetContent(include("syper/default_binds.lua"))
-			def:SetEditable(false)
-			
-			local conf = self:Add("SyperEditor")
-			conf:SetSyntax("json")
-			conf:SetPath("syper/keybinds.json")
-			conf:ReloadFile()
-			
-			local div = self:Add("SyperHDivider")
-			div:SetLeft(def)
-			div:SetRight(conf)
-			self:AddTab("Keybinds", div)
-			div:CenterDiv()
-		end)
-		config:AddOption("Settings", function()
-			local def = self:Add("SyperEditor")
-			def:SetSyntax("json")
-			def:SetContent(include("syper/default_settings.lua"))
-			def:SetEditable(false)
-			
-			local conf = self:Add("SyperEditor")
-			conf:SetSyntax("json")
-			conf:SetPath("syper/settings.json")
-			conf:ReloadFile()
-			
-			local div = self:Add("SyperHDivider")
-			div:SetLeft(def)
-			div:SetRight(conf)
-			self:AddTab("Settings", div)
-			div:CenterDiv()
-		end)
+		do
+			config:AddOption("Keybinds", function()
+				local def = self:Add("SyperEditor")
+				def:SetSyntax("json")
+				def:SetContent(include("syper/default_binds.lua"))
+				def:SetEditable(false)
+				
+				local conf = self:Add("SyperEditor")
+				conf:SetSyntax("json")
+				conf:SetPath("syper/keybinds.json")
+				conf:ReloadFile()
+				
+				local div = self:Add("SyperHDivider")
+				div:SetLeft(def)
+				div:SetRight(conf)
+				self:AddTab("Keybinds", div)
+				div:CenterDiv()
+			end)
+			config:AddOption("Settings", function()
+				local def = self:Add("SyperEditor")
+				def:SetSyntax("json")
+				def:SetContent(include("syper/default_settings.lua"))
+				def:SetEditable(false)
+				
+				local conf = self:Add("SyperEditor")
+				conf:SetSyntax("json")
+				conf:SetPath("syper/settings.json")
+				conf:ReloadFile()
+				
+				local div = self:Add("SyperHDivider")
+				div:SetLeft(def)
+				div:SetRight(conf)
+				self:AddTab("Settings", div)
+				div:CenterDiv()
+			end)
+		end
 	end
 	
 	do
@@ -163,6 +198,37 @@ function IDE:Init()
 	
 	do
 		self.filetree = self:Add("SyperTree")
+		self.filetree.OnNodePress = function(_, node)
+			local tabhandler = self:GetActiveTabHandler()
+			for i, tab in ipairs(tabhandler.tabs) do
+				if tab.panel.path == node.path then
+					tabhandler:SetActive(i)
+					
+					return
+				end
+			end
+			
+			local typ = Syper.FILEEXTTYPE[ext]
+			if not typ or typ == FT.Generic or typ == FT.Code then
+				local editor = self:Add("SyperEditor")
+				editor:SetSyntax(Syper.SyntaxFromPath(node.path))
+				editor:SetPath(node.path, node.root_path)
+				editor:ReloadFile()
+				self:AddTab(node.name, editor)
+			elseif typ == FT.Image then
+				local viewer = self:Add("SyperHTML")
+				viewer:OpenImg(node.path)
+				self:AddTab(node.name, viewer)
+			elseif typ == FT.Video then
+				local viewer = self:Add("SyperHTML")
+				viewer:OpenVideo(node.path)
+				self:AddTab(node.name, viewer)
+			elseif typ == FT.Audio then
+				local viewer = self:Add("SyperHTML")
+				viewer:OpenAudio(node.path)
+				self:AddTab(node.name, viewer)
+			end
+		end
 	end
 	
 	self.filetree_div = self:Add("SyperHDivider")
@@ -233,7 +299,7 @@ function IDE:AddTab(name, panel)
 	local tabhandler = self:GetActiveTabHandler()
 	tabhandler:AddTab(name, panel, tabhandler:GetActive() + 1)
 	
-	self.filetree:Select((panel.root_path and panel.path) and self.filetree.nodes_lookup[panel.root_path][panel.path], true)
+	self.filetree:Select((panel.root_path and panel.path) and self.filetree.nodes_lookup[panel.root_path] and self.filetree.nodes_lookup[panel.root_path][panel.path], true)
 end
 
 function IDE:Save(panel, force_browser)
@@ -321,15 +387,12 @@ function IDE:Delete(path)
 	end)
 end
 
-function IDE:Rename(path)
-	local name = string.match(path, "([^/]+)/?$")
-	path = string.sub(path, 1, string.match(path, "()[^/]*/?$") - 1)
-	
+function IDE:TextEntry(title, text, on_confirm, allow)
 	local frame = vgui.Create("DFrame")
 	local x, y = self:LocalToScreen(self:GetWide() / 2, self:GetTall() / 2)
 	frame:SetPos(x - 180, y - 27)
 	frame:SetSize(360, 54)
-	frame:SetTitle("Rename")
+	frame:SetTitle(title)
 	frame.Paint = function(_, w, h)
 		surface.SetDrawColor(settings.style_data.ide_ui)
 		surface.DrawRect(0, 0, w, h)
@@ -343,9 +406,38 @@ function IDE:Rename(path)
 	frame.confirm:SetText("Confirm")
 	frame.confirm:SetFont("syper_ide")
 	frame.confirm:SetDoubleClickingEnabled(false)
-	frame.confirm.DoClick = function()
+	frame.confirm:SetEnabled(allow(text))
+	frame.confirm.DoClick = function(self)
 		frame:Remove()
 		
+		on_confirm(frame.entry:GetText())
+	end
+	
+	frame.entry = frame:Add("SyperTextEntry")
+	frame.entry:Dock(FILL)
+	frame.entry:SetFont("syper_ide")
+	frame.entry:SetText(text)
+	frame.entry:SelectAllOnFocus()
+	frame.entry.OnChange = function(self)
+		frame.confirm:SetEnabled(allow(self:GetText()))
+	end
+	
+	frame:MakePopup()
+	frame.entry:RequestFocus()
+end
+
+function IDE:Rename(path)
+	local name = string.match(path, "([^/]+)/?$")
+	path = string.sub(path, 1, string.match(path, "()[^/]*/?$") - 1)
+	
+	local isdir = file.IsDir(path, "DATA")
+	local allow = isdir and (function(text)
+		return #text > 0 and not file.Exists(path .. text, "DATA")
+	end) or (function(text)
+		return Syper.validFileName(text)
+	end)
+	
+	self:TextEntry("Rename", name, function(nname)
 		local tab
 		local tabhandler = self:GetActiveTabHandler()
 		for i, t in ipairs(tabhandler.tabs) do
@@ -356,11 +448,22 @@ function IDE:Rename(path)
 			end
 		end
 		
-		local nname = frame.entry:GetText()
 		file.Rename(path .. name, path .. nname)
-		self.filetree:Refresh(path, "DATA")
-		if self.filetree.nodes_lookup.DATA[path .. name].selected then
-			self.filetree:Select(self.filetree.nodes_lookup.DATA[path .. nname], true)
+		local node = self.filetree.nodes_lookup.DATA[path .. name] or self.filetree.nodes_lookup.DATA[path .. name .. "/"]
+		if node.main_directory then
+			self.filetree.nodes_lookup.DATA[path .. name .. "/"] = nil
+			self.filetree.nodes_lookup.DATA[path .. nname .. "/"] = node
+			node.name = nname
+			node.path = path .. nname .. "/"
+			
+			self.filetree:Refresh()
+		else
+			self.filetree:Refresh(path, "DATA")
+			if not isdir then
+				if node.selected then
+					self.filetree:Select(node, true)
+				end
+			end
 		end
 		
 		if tab then
@@ -368,19 +471,7 @@ function IDE:Rename(path)
 			tab.tab.name = nname
 			tab.panel:SetPath(path .. nname)
 		end
-	end
-	
-	frame.entry = frame:Add("SyperTextEntry")
-	frame.entry:Dock(FILL)
-	frame.entry:SetFont("syper_ide")
-	frame.entry:SetText(name)
-	frame.entry:SelectAllOnFocus()
-	frame.entry.OnChange = function(_)
-		frame.confirm:SetEnabled(Syper.validFileName(_:GetText()))
-	end
-	
-	frame:MakePopup()
-	frame.entry:RequestFocus()
+	end, allow)
 end
 
 function IDE:ConfirmPanel(text, cancel_func, confirm_func)
@@ -391,7 +482,7 @@ function IDE:ConfirmPanel(text, cancel_func, confirm_func)
 	local x, y = self:LocalToScreen(self:GetWide() / 2, self:GetTall() / 2)
 	frame:SetPos(x - 180, y - 27)
 	frame:SetSize(360, 74 + th)
-	frame:SetTitle("Rename")
+	frame:SetTitle("Are you sure?")
 	frame.Paint = function(_, w, h)
 		surface.SetDrawColor(settings.style_data.ide_ui)
 		surface.DrawRect(0, 0, w, h)
