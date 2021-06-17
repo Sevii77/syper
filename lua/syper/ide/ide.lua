@@ -220,8 +220,8 @@ function IDE:Init()
 			if not typ or typ == FT.Generic or typ == FT.Code then
 				local editor = self:Add("SyperEditor")
 				editor:SetSyntax(Syper.SyntaxFromPath(node.path))
-				editor.loading = true
 				if node.root_path == "GITHUB" then
+					editor.loading = true
 					Syper.fetchGitHubFile(node.path, function(content)
 						editor.loading = false
 						editor:SetContent(content)

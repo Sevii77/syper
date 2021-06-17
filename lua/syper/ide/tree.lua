@@ -526,11 +526,15 @@ function Tree:Refresh(path, root_path, recursive)
 	
 	if path == nil then
 		for _, node in ipairs(self.folders) do
-			node:Refresh(recursive)
+			-- dont auto refresh github folders
+			if node.root_path ~= "GITHUB" then
+				node:Refresh(recursive)
+			end
 		end
 	else
 		if root_path == "GITHUB" then
 			-- TODO: GitHub refresh
+			return
 		end
 		
 		local segs = string.Split(path, "/")

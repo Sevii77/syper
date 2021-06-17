@@ -25,6 +25,11 @@ function Tab:OnMousePressed(key)
 		if self.handler.OnTabPress then
 			self.handler:OnTabPress(self)
 		end
+		
+		self.handler.holding = self
+		self.handler.hold_offset = self:LocalCursorPos()
+		self:MouseCapture(true)
+		self:SetZPos(1001)
 	elseif key == MOUSE_RIGHT then
 		-- TODO: make close check if it should prompt save first
 		-- TODO: make not look shit
@@ -54,6 +59,30 @@ function Tab:OnMousePressed(key)
 			end
 		end)
 		menu:Open()
+	end
+end
+
+function Tab:OnMouseReleased(key)
+	if key == MOUSE_LEFT then
+		self.handler.holding = nil
+		self:MouseCapture(false)
+		
+		local cur = self.handler:GetIndex(self.panel)
+		for i, tab in ipairs(self.handler.tabs) do
+			if tab.tab:GetX() > self:GetX() then
+				if cur == i then
+					self.handler:InvalidateLayout()
+					
+					return
+				end
+				
+				self.handler:MoveTab(cur, i)
+				
+				return
+			end
+		end
+		
+		self.handler:MoveTab(cur, #self.handler.tabs + 1)
 	end
 end
 
@@ -134,6 +163,13 @@ function TabHandler:Paint(w, h)
 	surface.DrawRect(0, self.bar_size, w, h - self.bar_size)
 end
 
+function TabHandler:Think()
+	if not self.holding then return end
+	
+	local x = self:LocalCursorPos()
+	self.holding:SetPos(x - self.hold_offset, 0)
+end
+
 function TabHandler:ScrollBounds(w)
 	-- local max = #self.tabs * self.tab_size - w
 	local max = -w
@@ -145,6 +181,8 @@ function TabHandler:ScrollBounds(w)
 end
 
 function TabHandler:PerformLayout(w, h)
+	if self.holding then return end
+	
 	self:ScrollBounds(w)
 	
 	local offset = 0
@@ -244,6 +282,15 @@ end
 function TabHandler:RenameTab(index, name)
 	self.tabs[index].name = name
 	self.tabs[index].tab.name = name
+	Syper.IDE:SaveSession()
+end
+
+function TabHandler:MoveTab(old, new)
+	local t = self.tabs[old]
+	table.insert(self.tabs, new, t)
+	table.remove(self.tabs, old + (old > new and 1 or 0))
+	
+	self:InvalidateLayout()
 	Syper.IDE:SaveSession()
 end
 
