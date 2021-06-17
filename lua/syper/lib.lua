@@ -44,20 +44,59 @@ function Syper.jsonToTable(json)
 	return util.JSONToTable(json)
 end
 
+function Syper.fetchGitHubPaths(url, callback)
+	http.Fetch(url, function(content)
+		local files, dirs = {}, {}
+		
+		for pos, typ in string.gmatch(content, [[<svg aria%-label="()([^"]+)" aria%-hidden="true"]]) do
+			local pos, name = string.match(content, [[<a class="js%-navigation%-open Link%-%-primary" title="()([^"]+)" data%-pjax="#repo%-content%-pjax%-container"]], pos)
+			if name == "This path skips through empty directories" then
+				name, v = string.match(content, [[<span class="color%-text%-tertiary">([^<]+)</span>([^<]+)]], pos)
+				-- name = name .. v
+			end
+			
+			-- print(typ, name, url .. name)
+			local tbl = typ == "Directory" and dirs or files
+			tbl[#tbl + 1] = string.match(name, "[^/]+")
+		end
+		
+		callback(files, dirs)
+	end)
+end
+
+function Syper.getGitHubRaw(url)
+	local author_repo, path = string.match(url, "github%.com/([^/]+/[^/]+)/tree/master/(.+)")
+	return "https://raw.githubusercontent.com/" .. author_repo .. "/master/" .. path
+end
+
+function Syper.fetchGitHubFile(url, callback)
+	http.Fetch(Syper.getGitHubRaw(url), function(content)
+		callback(content)
+	end)
+end
+
+function Syper.fileFindCallback(path, root_path, callback)
+	callback(file.Find(path, root_path))
+end
+
 local names = {"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
-               "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"}
+			   "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"}
 local exts = {"txt", "jpg", "png", "vtf", "dat", "json", "vmt"}
 
 -- TODO: dont do this, just have it pre in the table, to lazy atm
 for _, v in ipairs(names) do names[v] = true end
 for _, v in ipairs(exts) do exts[v] = true end
 
+function Syper.getExtension(path)
+	return string.match(path, "%.([^%.]*)$") or ""
+end
+
 function Syper.validFileName(name)
 	if #name == 0 then return false end
 	if string.find(name, "[<>:\"/\\|%?%*]") then return false end
 	-- if string.find(name, "[\x00-\x1F]") then return false end
 	if system.IsWindows() and names[string.upper(string.match(name, "^([^%.]*)"))] then return false end
-	if not exts[string.match(name, "([^%.]*)$")] then return false end
+	if not exts[Syper.getExtension(path)] then return false end
 	
 	return true
 end
@@ -66,7 +105,7 @@ function Syper.validPath(path)
 	if string.find(path, "[<>:\"\\|%?%*]") then return false end
 	-- if string.find(path, "[\x00-\x1F]") then return false end
 	if system.IsWindows() and names[string.upper(string.match(string.match(path, "([^/]*)$"), "^([^%.]*)"))] then return false end
-	if not exts[string.match(path, "([^%.]*)$")] then return false end
+	if not exts[Syper.getExtension(path)] then return false end
 	
 	return true
 end

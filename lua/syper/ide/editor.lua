@@ -1072,6 +1072,13 @@ function Editor:Paint(w, h)
 	surface.SetDrawColor(settings.style_data.background)
 	surface.DrawRect(0, 0, w, h)
 	
+	if self.loading then
+		local p = math.sin(CurTime() * 3) * 50
+		
+		surface.SetDrawColor(settings.style_data.gutter_foreground)
+		surface.DrawRect(w / 2 - 20 + math.max(p, -30), h / 2 - 1, math.min(50 - math.abs(p) + 20, 40), 2)
+	end
+	
 	return true
 end
 

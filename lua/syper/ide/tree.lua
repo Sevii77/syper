@@ -100,43 +100,48 @@ function Node:OnMousePressed(key)
 		end
 	end
 	
-	if key == MOUSE_RIGHT and self.root_path == "DATA" then
+	if key == MOUSE_RIGHT then
 		-- TODO: make not look shit
 		local menu = DermaMenu()
-		if self.is_folder then
-			menu:AddOption("New File", function()
-				local ide = self.tree:FindIDE()
-				local editor = ide:Add("SyperEditor")
-				editor:SetSyntax(Syper.SyntaxFromPath(self.path))
-				editor:SetContent("")
-				editor:SetPath(self.path, "DATA")
-				ide:AddTab("untitled", editor)
-			end)
-			menu:AddOption("New Folder", function()
-				self.tree:FindIDE():TextEntry("New Folder", "", function(text)
-					file.CreateDir(self.path .. text)
-					self:Refresh()
-				end, function(text)
-					return #text > 0 and not file.Exists(self.path .. text, "DATA")
+		if self.root_path == "DATA" then
+			if self.is_folder then
+				menu:AddOption("New File", function()
+					local ide = self.tree:FindIDE()
+					local editor = ide:Add("SyperEditor")
+					editor:SetSyntax(Syper.SyntaxFromPath(self.path))
+					editor:SetContent("")
+					editor:SetPath(self.path, "DATA")
+					ide:AddTab("untitled", editor)
 				end)
+				menu:AddOption("New Folder", function()
+					self.tree:FindIDE():TextEntry("New Folder", "", function(text)
+						file.CreateDir(self.path .. text)
+						self:Refresh()
+					end, function(text)
+						return #text > 0 and not file.Exists(self.path .. text, "DATA")
+					end)
+				end)
+			end
+			menu:AddOption("Rename", function()
+				self.tree:FindIDE():Rename(self.path)
+			end)
+			menu:AddOption("Delete", function()
+				local paths = {}
+				for node, _ in pairs(self.tree.selected) do
+					if node.root_path == "DATA" then
+						paths[#paths + 1] = node.path
+					end
+				end
+				
+				self.tree:FindIDE():Delete(paths)
 			end)
 		end
-		menu:AddOption("Rename", function()
-			self.tree:FindIDE():Rename(self.path)
-		end)
-		menu:AddOption("Delete", function()
-			local paths = {}
-			for node, _ in pairs(self.tree.selected) do
-				if node.root_path == "DATA" then
-					paths[#paths + 1] = node.path
-				end
-			end
-			
-			self.tree:FindIDE():Delete(paths)
-		end)
 		if self.main_directory then
+			menu:AddOption("Refresh", function()
+				self:Refresh(true)
+			end)
 			menu:AddOption("Remove From Project", function()
-				self.tree:RemoveDirectory(self.path, self.path_root)
+				self.tree:RemoveDirectory(self.path, self.root_path)
 			end)
 		end
 		menu:Open()
@@ -156,64 +161,81 @@ end
 
 function Node:AddDirectory()
 	if not self.is_folder then return end
+	
 	local path = string.sub(self.path, -1, -1) == "/" and self.path or self.path .. "/"
 	
-	local files, dirs = file.Find(path .. "*", self.root_path)
-	for _, dir in ipairs(dirs) do
-		local n = self:AddNode(dir, true)
-		n:SetPath(path .. dir, self.root_path)
-		n:AddDirectory()
+	local nodes = function(files, dirs)
+		for _, dir in ipairs(dirs) do
+			local n = self:AddNode(dir, true)
+			n:SetPath(path .. dir, self.root_path)
+			n:AddDirectory()
+		end
+		
+		for _, file in ipairs(files) do
+			local n = self:AddNode(file, false)
+			n:SetPath(path .. file, self.root_path)
+			n:GuessIcon()
+		end
 	end
 	
-	for _, file in ipairs(files) do
-		local n = self:AddNode(file, false)
-		n:SetPath(path .. file, self.root_path)
-		n:GuessIcon()
+	if self.root_path == "GITHUB" then
+		Syper.fetchGitHubPaths(path, nodes)
+	else
+		Syper.fileFindCallback(path .. "*", self.root_path, nodes)
 	end
 end
 
 function Node:Refresh(recursive)
 	if not self.is_folder then return end
+	
 	local path = string.sub(self.path, -1, -1) == "/" and self.path or self.path .. "/"
-	local names = {}
-	local files, dirs = file.Find(path .. "*", self.root_path)
-	for _, n in ipairs(files) do names[n] = 1 end
-	for _, n in ipairs(dirs) do names[n] = 2 end
 	
-	for i = #self.nodes, 1, -1 do
-		local node = self.nodes[i]
-		if names[node.name] then
-			names[node.name] = nil
-			
-			if recursive and node.is_folder then
-				node:Refresh(true)
+	local nodes = function(files, dirs)
+		local names = {}
+		for _, n in ipairs(files) do names[n] = 1 end
+		for _, n in ipairs(dirs) do names[n] = 2 end
+		
+		for i = #self.nodes, 1, -1 do
+			local node = self.nodes[i]
+			if names[node.name] then
+				names[node.name] = nil
+				
+				if recursive and node.is_folder then
+					node:Refresh(true)
+				end
+			else
+				node:Remove()
+				table.remove(self.nodes, i)
+				self.tree:InvalidateLayout()
 			end
-		else
-			node:Remove()
-			table.remove(self.nodes, i)
-			self.tree:InvalidateLayout()
+		end
+		
+		local reorder = false
+		for name, typ in pairs(names) do
+			if typ == 1 then
+				local node = self:AddNode(name, false)
+				node:SetPath(self.path .. name, self.root_path)
+				node:GuessIcon()
+				reorder = true
+				self.tree:InvalidateLayout()
+			else
+				local node = self:AddNode(name, true)
+				node:SetPath(self.path .. name .. "/", self.root_path)
+				node:AddDirectory()
+				reorder = true
+				self.tree:InvalidateLayout()
+			end
+		end
+		
+		if reorder then
+			self:ReorderChildren()
 		end
 	end
 	
-	local reorder = false
-	for name, typ in pairs(names) do
-		if typ == 1 then
-			local node = self:AddNode(name, false)
-			node:SetPath(self.path .. name, self.root_path)
-			node:GuessIcon()
-			reorder = true
-			self.tree:InvalidateLayout()
-		else
-			local node = self:AddNode(name, true)
-			node:SetPath(self.path .. name .. "/", self.root_path)
-			node:AddDirectory()
-			reorder = true
-			self.tree:InvalidateLayout()
-		end
-	end
-	
-	if reorder then
-		self:ReorderChildren()
+	if self.root_path == "GITHUB" then
+		Syper.fetchGitHubPaths(path, nodes)
+	else
+		Syper.fileFindCallback(path .. "*", self.root_path, nodes)
 	end
 end
 
@@ -442,24 +464,41 @@ function Tree:AddFolder(name, path, root_path)
 end
 
 function Tree:AddDirectory(path, root_path)
-	local name = string.match(path, "([^/]+)/?$")
-	path = string.sub(path, -1, -1) == "/" and path or path .. "/"
-	root_path = root_path or "DATA"
+	Syper.IDE:SaveSession()
+	self:InvalidateLayout()
+	
+	local name
+	if root_path == "GITHUB" then
+		local author, repo = string.match(path, "github%.com/([^/]+)/([^/]+)")
+		name = author .. "/" .. repo
+		path = "https://github.com/" .. name .. "/tree/master/"
+	else
+		name = string.match(path, "([^/]+)/?$")
+		path = string.sub(path, -1, -1) == "/" and path or path .. "/"
+		root_path = root_path or "DATA"
+	end
 	
 	local node = self:AddFolder(name, path, root_path)
 	node.main_directory = true
 	
-	local files, dirs = file.Find(path .. "*", root_path)
-	for _, dir in ipairs(dirs) do
-		local n = node:AddNode(dir, true)
-		n:SetPath(path .. dir .. "/", root_path)
-		n:AddDirectory()
+	local nodes = function(files, dirs)
+		for _, dir in ipairs(dirs) do
+			local n = node:AddNode(dir, true)
+			n:SetPath(path .. dir .. "/", root_path)
+			n:AddDirectory()
+		end
+		
+		for _, file in ipairs(files) do
+			local n = node:AddNode(file, false)
+			n:SetPath(path .. file, root_path)
+			n:GuessIcon()
+		end
 	end
 	
-	for _, file in ipairs(files) do
-		local n = node:AddNode(file, false)
-		n:SetPath(path .. file, root_path)
-		n:GuessIcon()
+	if root_path == "GITHUB" then
+		Syper.fetchGitHubPaths(path, nodes)
+	else
+		Syper.fileFindCallback(path .. "*", root_path, nodes)
 	end
 	
 	return node
@@ -479,14 +518,21 @@ function Tree:RemoveDirectory(path, root_path)
 	end
 	
 	self:InvalidateLayout()
+	Syper.IDE:SaveSession()
 end
 
 function Tree:Refresh(path, root_path, recursive)
+	self:InvalidateLayout()
+	
 	if path == nil then
 		for _, node in ipairs(self.folders) do
 			node:Refresh(recursive)
 		end
 	else
+		if root_path == "GITHUB" then
+			-- TODO: GitHub refresh
+		end
+		
 		local segs = string.Split(path, "/")
 		if not file.IsDir(path, root_path) then
 			segs[#segs] = nil
@@ -520,8 +566,6 @@ function Tree:Refresh(path, root_path, recursive)
 			end
 		end
 	end
-	
-	self:InvalidateLayout()
 end
 
 function Tree:Clear()

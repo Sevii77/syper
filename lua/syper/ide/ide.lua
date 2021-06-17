@@ -151,6 +151,14 @@ function IDE:Init()
 					self.filetree:InvalidateLayout()
 				end
 			end)
+			file:AddOption("Open GitHub", function()
+				self:TextEntry("Enter GitHub Link", "", function(path)
+					self.filetree:AddDirectory(path, "GITHUB")
+					self.filetree:InvalidateLayout()
+				end, function(path)
+					return string.find(path, "github%.com/([^/]+)/([^/]+)")
+				end)
+			end)
 		end
 		
 		local config = self.bar:AddMenu("Config")
@@ -208,24 +216,32 @@ function IDE:Init()
 				end
 			end
 			
-			local typ = Syper.FILEEXTTYPE[ext]
+			local typ = Syper.FILEEXTTYPE[Syper.getExtension(node.path)]
 			if not typ or typ == FT.Generic or typ == FT.Code then
 				local editor = self:Add("SyperEditor")
 				editor:SetSyntax(Syper.SyntaxFromPath(node.path))
-				editor:SetPath(node.path, node.root_path)
-				editor:ReloadFile()
+				editor.loading = true
+				if node.root_path == "GITHUB" then
+					Syper.fetchGitHubFile(node.path, function(content)
+						editor.loading = false
+						editor:SetContent(content)
+					end)
+				else
+					editor:SetPath(node.path, node.root_path)
+					editor:ReloadFile()
+				end
 				self:AddTab(node.name, editor)
 			elseif typ == FT.Image then
 				local viewer = self:Add("SyperHTML")
-				viewer:OpenImg(node.path)
+				viewer:OpenImg(node.root_path == "GITHUB" and Syper.getGitHubRaw(node.path) or node.path)
 				self:AddTab(node.name, viewer)
 			elseif typ == FT.Video then
 				local viewer = self:Add("SyperHTML")
-				viewer:OpenVideo(node.path)
+				viewer:OpenVideo(node.root_path == "GITHUB" and Syper.getGitHubRaw(node.path) or node.path)
 				self:AddTab(node.name, viewer)
 			elseif typ == FT.Audio then
 				local viewer = self:Add("SyperHTML")
-				viewer:OpenAudio(node.path)
+				viewer:OpenAudio(node.root_path == "GITHUB" and Syper.getGitHubRaw(node.path) or node.path)
 				self:AddTab(node.name, viewer)
 			end
 		end
