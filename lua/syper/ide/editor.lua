@@ -126,10 +126,12 @@ local Act = {}
 
 function Act.undo(self)
 	self:Undo()
+	self:CheckNameChanged()
 end
 
 function Act.redo(self)
 	self:Redo()
+	self:CheckNameChanged()
 end
 
 function Act.copy(self)
@@ -188,6 +190,8 @@ function Act.cut(self)
 	if self:HasSelection() then
 		self:RemoveSelection()
 	end
+	
+	self:CheckNameChanged()
 end
 
 function Act.paste(self)
@@ -472,6 +476,7 @@ end
 
 function Act.writestr(self, str)
 	self:InsertStr(str)
+	self:CheckNameChanged()
 end
 
 function Act.delete(self, typ, count_dir)
@@ -534,6 +539,8 @@ function Act.delete(self, typ, count_dir)
 		self:PushHistoryBlock()
 		self:Rebuild()
 	end
+	
+	self:CheckNameChanged()
 end
 
 function Act.move(self, typ, count_dir, selc)
@@ -737,6 +744,43 @@ function Editor:Init()
 		surface.SetTextPos((h - th) / 2 + 2, h / 2 - th / 2 + 2)
 		surface.DrawText(str)
 	end
+	self.infobar.Think = function(_)
+		if not _.holding then return end
+		
+		local x, y = _:LocalCursorPos()
+		if math.sqrt((_.holding[1] - x) ^ 2 + (_.holding[2] - y) ^ 2) > 10 then
+			_.holding = nil
+			
+			local parent = self:GetParent()
+			while true do
+				local p = parent:GetParent()
+				if p.ClassName == "SyperTabHandler" then
+					break
+				end
+				parent = p
+			end
+			
+			local handler = self:FindTabHandler()
+			self:SafeUnparent()
+			-- parent:InvalidateChildren(true)
+			parent:InvalidateLayout(true)
+			-- print(parent)
+			timer.Simple(0, function()
+				handler:ForceMovePanel(self)
+			end)
+		end
+	end
+	self.infobar.OnMousePressed = function(_, key)
+		if key ~= MOUSE_LEFT then return end
+		if self:GetParent().ClassName == "SyperTabHandler" then return end
+		
+		_.holding = {_:LocalCursorPos()}
+	end
+	self.infobar.OnMouseReleased = function(_, key)
+		if key ~= MOUSE_LEFT then return end
+		
+		_.holding = nil
+	end
 	
 	self.syntax_button = self.infobar:Add("DButton")
 	self.syntax_button:SetWide(100)
@@ -900,9 +944,6 @@ function Editor:Init()
 			end
 		end
 		
-		return true
-	end
-	self.lineholder.PaintOver = function(_, w, h)
 		if not self:HasFocus() then return end
 		
 		local lines = self.content_data.lines
@@ -998,6 +1039,8 @@ function Editor:Init()
 			surface.SetTextPos(x + th * 1, y)
 			surface.DrawText(lv.str)
 		end
+		
+		return true
 	end
 	
 	self.scrolltarget = 0
@@ -1362,6 +1405,8 @@ function Editor:OnTextChanged()
 		self:PushHistoryBlock()
 	end
 	
+	self:CheckNameChanged()
+	
 	self.is_pasted = nil
 	self:Rebuild()
 end
@@ -1565,7 +1610,8 @@ function Editor:GetSessionState()
 	end
 	
 	return {
-		name = self:GetName(),
+		name = self.name,
+		does_name = self.OnNameChange ~= nil,
 		path = {self.path, self.root_path},
 		syntax = self.syntax,
 		editable = self.editable,
@@ -1582,6 +1628,13 @@ function Editor:SetSessionState(state)
 	self:SetEditable(state.editable)
 	self:SetContent(state.content)
 	
+	if state.does_name then
+		self.OnNameChange = function(_, name)
+			local handler = self:FindTabHandler()
+			handler:RenameTab(handler:GetIndex(self), name)
+		end
+	end
+	
 	-- doesnt work and i have no clue why, TODO: fix that
 	self.scrollbar_h:SetScroll(state.scroll[1])
 	self.scrollbar:SetScroll(state.scroll[2])
@@ -1596,11 +1649,24 @@ function Editor:SetSessionState(state)
 end
 
 function Editor:GetName()
-	return "TODO"
+	local str = sub(string.match(self.content_data:GetLineStr(1), "%s*([^\n]*)"), 1, 24)
+	str = #str > 0 and str or nil
+	return self.name or str
 end
 
-function Editor:SetName()
+function Editor:SetName(name)
+	self.last_name = name
+	self.name = name
+end
+
+function Editor:CheckNameChanged()
+	if not self.OnNameChange then return end
 	
+	local name = self:GetName() or "untitled"
+	if name ~= self.last_name then
+		self:OnNameChange(name)
+	end
+	self.last_name = name
 end
 
 function Editor:GetContentStr()
@@ -2405,6 +2471,7 @@ function Editor:SetContent(str)
 	
 	self:Rebuild()
 	self:MarkClearExcessCarets()
+	self:CheckNameChanged()
 end
 
 vgui.Register("SyperEditor", Editor, "SyperBaseTextEntry")

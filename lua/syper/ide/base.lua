@@ -102,6 +102,51 @@ function Base:FocusNext()
 	end
 end
 
+function Base:Replace(panel)
+	local parent = self:GetParent()
+	if parent.ClassName == "SyperHDivider" then
+		if parent.left == self then
+			parent:SetLeft(panel)
+		else
+			parent:SetRight(panel)
+		end
+	elseif parent.ClassName == "SyperHDivider" then
+		if parent.top == self then
+			parent:SetTop(panel)
+		else
+			parent:SetBottom(panel)
+		end
+	elseif parent.ClassName == "SyperTabHandler" then
+		for i, tab in ipairs(parent.tabs) do
+			if tab.panel == self then
+				tab.panel = panel
+				tab.tab.panel = panel
+				panel:SetParent(parent)
+				break
+			end
+		end
+	else
+		panel:SetParent(parent)
+	end
+	
+	self:SetParent()
+	self:Remove()
+end
+
+function Base:SafeUnparent()
+	local parent = self:GetParent()
+	self:SetParent()
+	
+	if parent.ClassName == "SyperHDivider" then
+		parent:Replace(parent.left == self and parent.right or parent.left)
+	elseif parent.ClassName == "SyperVDivider" then
+		parent:Replace(parent.top == self and parent.bottom or parent.top)
+	elseif parent.ClassName == "SyperTabHandler" then
+		parent:RemoveTab(parent:GetIndex(self), true)
+		parent:PerformLayoutTab(parent.tabs[parent.active_tab], parent:GetWide(), parent:GetTall(), true)
+	end
+end
+
 function Base:FindParent(name)
 	local p = self:GetParent()
 	while IsValid(p) do

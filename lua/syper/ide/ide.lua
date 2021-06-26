@@ -118,7 +118,7 @@ function IDE:Init()
 				local editor = self:Add("SyperEditor")
 				editor:SetSyntax("text")
 				editor:SetContent("")
-				self:AddTab("untitled", editor)
+				self:AddTab(nil, editor)
 			end)
 			file:AddOption("Open File", function()
 				local browser = vgui.Create("SyperBrowser")
@@ -313,7 +313,14 @@ end
 
 function IDE:AddTab(name, panel)
 	local tabhandler = self:GetActiveTabHandler()
-	tabhandler:AddTab(name, panel, tabhandler:GetActive() + 1)
+	tabhandler:AddTab(name or "Untitled", panel, tabhandler:GetActive() + 1)
+	
+	if panel.SetName then
+		panel:SetName(name)
+		panel.OnNameChange = function(_, name)
+			tabhandler:RenameTab(tabhandler:GetIndex(panel), name)
+		end
+	end
 	
 	self.filetree:Select((panel.root_path and panel.path) and self.filetree.nodes_lookup[panel.root_path] and self.filetree.nodes_lookup[panel.root_path][panel.path], true)
 end

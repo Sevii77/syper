@@ -27,11 +27,6 @@ end
 function Divider:PerformLayout(w, h)
 	if not self.bottom then return end
 	if not self.top then return end
-	if self.first == nil then
-		self.first = true
-		
-		return
-	end
 	
 	if self.last_h then
 		local div = self.last_h - h
@@ -46,7 +41,11 @@ function Divider:PerformLayout(w, h)
 		
 		self.div_pos = math.Clamp(self.div_pos, self.min_size, h - self.min_size - self.div_size)
 	end
-	self.last_h = h
+	
+	if h ~= 0 or self.first then
+		self.first = true
+		self.last_h = h
+	end
 	
 	self.top:SetPos(0, 0)
 	self.top:SetSize(w, self.div_pos)

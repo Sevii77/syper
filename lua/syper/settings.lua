@@ -270,17 +270,21 @@ function Settings.saveSession(ide)
 	end
 	
 	do -- Tabs
-		local tabs = {}
-		for i, tab in ipairs(ide.tabhandler.tabs) do
-			tabs[i] = {
-				name = tab.name,
-				type = tab.panel.ClassName,
-				state = tab.panel:GetSessionState()
-			}
-		end
+		-- local tabs = {}
+		-- for i, tab in ipairs(ide.tabhandler.tabs) do
+		-- 	tabs[i] = {
+		-- 		name = tab.name,
+		-- 		type = tab.panel.ClassName,
+		-- 		state = tab.panel:GetSessionState()
+		-- 	}
+		-- end
 		
-		session.tabs = tabs
-		session.active_tab = ide.tabhandler:GetActive()
+		-- session.tabs = tabs
+		-- session.active_tab = ide.tabhandler:GetActive()
+		
+		session.handlers = {
+			ide.tabhandler:GetSessionState()
+		}
 	end
 	
 	file.Write("syper/session.json", util.TableToJSON(session))
@@ -307,13 +311,17 @@ function Settings.loadSession(ide)
 	end
 	
 	do -- Tabs
-		local tabhandler = ide.tabhandler
-		for i, tab in ipairs(session.tabs or {}) do
-			local panel = vgui.Create(tab.type)
-			local t = tabhandler:AddTab(tab.name, panel, i, session.active_tab ~= i)
-			tabhandler:PerformLayoutTab(t, tabhandler:GetWide(), tabhandler:GetTall())
+		-- local tabhandler = ide.tabhandler
+		-- for i, tab in ipairs(session.tabs or {}) do
+		-- 	local panel = vgui.Create(tab.type)
+		-- 	local t = tabhandler:AddTab(tab.name, panel, i, session.active_tab ~= i)
+		-- 	tabhandler:PerformLayoutTab(t, tabhandler:GetWide(), tabhandler:GetTall())
 			
-			panel:SetSessionState(tab.state)
+		-- 	panel:SetSessionState(tab.state)
+		-- end
+		
+		for i, handler in ipairs(session.handlers or {}) do
+			ide.tabhandler:SetSessionState(handler)
 		end
 	end
 	

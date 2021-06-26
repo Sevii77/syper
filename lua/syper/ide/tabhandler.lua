@@ -26,10 +26,42 @@ function Tab:OnMousePressed(key)
 			self.handler:OnTabPress(self)
 		end
 		
+		local tab = self.handler.tabs[self.handler.active_tab > 1 and self.handler.active_tab - 1 or self.handler.active_tab + 1]
+		if not tab then return end
+		self.handler.hold_layout_main = tab
+		self.handler:PerformLayoutTab(tab, self.handler:GetSize())
+		self.handler:PerformLayoutTab(self, self.handler:GetSize())
+		
 		self.handler.holding = self
-		self.handler.hold_offset = self:LocalCursorPos()
+		self.handler.hold_offset = {self:LocalCursorPos()}
 		self:MouseCapture(true)
-		self:SetZPos(1001)
+		self:SetVisible(false)
+		
+		self.handler.hold_layout = {}
+		local function populateLayout(panel)
+			local cc = 0
+			for i, child in ipairs(panel:GetChildren()) do
+				if child.SyperBase then
+					cc = cc + 1
+					populateLayout(child)
+				end
+			end
+			
+			if cc == 0 then
+				local x, y = panel:LocalToScreen(0, 0)
+				local w, h = panel:GetSize()
+				self.handler.hold_layout[#self.handler.hold_layout + 1] = {
+					panel = panel,
+					x = x,
+					y = y,
+					x2 = x + w,
+					y2 = y + h,
+					w = w,
+					h = h
+				}
+			end
+		end
+		populateLayout(tab.panel)
 	elseif key == MOUSE_RIGHT then
 		-- TODO: make close check if it should prompt save first
 		-- TODO: make not look shit
@@ -64,25 +96,87 @@ end
 
 function Tab:OnMouseReleased(key)
 	if key == MOUSE_LEFT then
-		self.handler.holding = nil
 		self:MouseCapture(false)
 		
-		local cur = self.handler:GetIndex(self.panel)
-		for i, tab in ipairs(self.handler.tabs) do
-			if tab.tab:GetX() > self:GetX() then
-				if cur == i then
-					self.handler:InvalidateLayout()
+		if not self.handler.holding then
+			self.handler:SetActivePanel(self.panel)
+			return
+		end
+		
+		local pnl = self.handler.holding.panel
+		self.handler.holding = nil
+		
+		if self.handler.hold_dir and self.handler.hold_hover then
+			local dir = self.handler.hold_dir
+			local hvr = self.handler.hold_hover.panel
+			hvr.OnNameChange = nil
+			
+			local p = hvr:GetParent()
+			local div
+			if dir == 1 then
+				div = vgui.Create("SyperVDivider")
+				div:SetTop(pnl)
+				div:SetBottom(hvr)
+			elseif dir == 2 then
+				div = vgui.Create("SyperVDivider")
+				div:SetTop(hvr)
+				div:SetBottom(pnl)
+			elseif dir == 3 then
+				div = vgui.Create("SyperHDivider")
+				div:SetLeft(pnl)
+				div:SetRight(hvr)
+			elseif dir == 4 then
+				div = vgui.Create("SyperHDivider")
+				div:SetLeft(hvr)
+				div:SetRight(pnl)
+			end
+			
+			self.handler:RemoveTab(self.handler:GetIndex(self.panel), true)
+			
+			if p.ClassName == "SyperTabHandler" then
+				local i = p:GetIndex(hvr)
+				p.tabs[i].panel = div
+				div:SetParent(p)
+			elseif p.ClassName == "SyperVDivider" then
+				if p.top == hvr then
+					p:SetTop(div)
+				else
+					p:SetBottom(div)
+				end
+			elseif p.ClassName == "SyperHDivider" then
+				if p.left == hvr then
+					p:SetLeft(div)
+				else
+					p:SetRight(div)
+				end
+			end
+			
+			div:CenterDiv()
+			pnl:SetVisible(true)
+			p:InvalidateChildren(true)
+		else
+			self.handler:SetActivePanel(self.panel)
+			self:SetVisible(true)
+			
+			local lx = self.handler:LocalCursorPos() - self.handler.hold_offset[1]
+			local cur = self.handler:GetIndex(self.panel)
+			if not cur then return end
+			for i, tab in ipairs(self.handler.tabs) do
+				if tab.tab:GetX() > lx then
+					if cur == i then
+						self.handler:InvalidateLayout()
+						
+						return
+					end
+					
+					self.handler:MoveTab(cur, i)
 					
 					return
 				end
-				
-				self.handler:MoveTab(cur, i)
-				
-				return
 			end
+			
+			self.handler:MoveTab(cur, #self.handler.tabs + 1)
 		end
-		
-		self.handler:MoveTab(cur, #self.handler.tabs + 1)
 	end
 end
 
@@ -127,6 +221,8 @@ function Tab:Paint(w, h)
 		self.width = dw
 		self:InvalidateParent()
 	end
+	
+	return true
 end
 
 function Tab:SetActive(state)
@@ -163,11 +259,91 @@ function TabHandler:Paint(w, h)
 	surface.DrawRect(0, self.bar_size, w, h - self.bar_size)
 end
 
+function TabHandler:PaintOver()
+	if not self.holding then return end
+	
+	if self.hold_dir and self.hold_hover then
+		local x, y = self.hold_hover.x, self.hold_hover.y
+		local w, h = self.hold_hover.w, self.hold_hover.h
+		
+		local pnl = self.holding.panel
+		local hvr = self.hold_hover.panel
+		if self.hold_dir == 1 then
+			pnl:SetSize(w, h / 2)
+			pnl:InvalidateChildren(true)
+			pnl:PaintAt(x, y)
+			
+			hvr:SetSize(w, h / 2)
+			hvr:InvalidateChildren(true)
+			hvr:PaintAt(x, y + h / 2)
+		elseif self.hold_dir == 2 then
+			pnl:SetSize(w, h / 2)
+			pnl:InvalidateChildren(true)
+			pnl:PaintAt(x, y + h / 2)
+			
+			hvr:SetSize(w, h / 2)
+			hvr:InvalidateChildren(true)
+			hvr:PaintAt(x, y)
+		elseif self.hold_dir == 3 then
+			pnl:SetSize(w / 2, h)
+			pnl:InvalidateChildren(true)
+			pnl:PaintAt(x, y)
+			
+			hvr:SetSize(w / 2, h)
+			hvr:InvalidateChildren(true)
+			hvr:PaintAt(x + w / 2, y)
+		elseif self.hold_dir == 4 then
+			pnl:SetSize(w / 2, h)
+			pnl:InvalidateChildren(true)
+			pnl:PaintAt(x + w / 2, y)
+			
+			hvr:SetSize(w / 2, h)
+			hvr:InvalidateChildren(true)
+			hvr:PaintAt(x, y)
+		end
+	end
+	
+	local x, y = input.GetCursorPos()
+	local lx, ly = self:ScreenToLocal(x, y)
+	self.holding:PaintAt(x - self.hold_offset[1], ly > self.bar_size * 1.2 and y - self.hold_offset[2] or y - ly)
+end
+
 function TabHandler:Think()
 	if not self.holding then return end
 	
-	local x = self:LocalCursorPos()
-	self.holding:SetPos(x - self.hold_offset, 0)
+	self.hold_dir = nil
+	
+	local x, y = self:LocalCursorPos()
+	if #self.tabs < 2 then return end
+	if y <= self.bar_size * 1.2 then
+		self.hold_layout_main.panel:SetVisible(false)
+		self.holding.panel:SetVisible(true)
+		self.holding.panel:SetSize(self:GetWide(), self:GetTall() - self.bar_size)
+		self.holding.panel:InvalidateChildren(true)
+		return
+	end
+	self.hold_layout_main.panel:SetVisible(true)
+	self.holding.panel:SetVisible(false)
+	
+	local oldhold = self.hold_hover
+	self.hold_hover = nil
+	local x, y = input.GetCursorPos()
+	for _, data in ipairs(self.hold_layout) do
+		if x > data.x and x < data.x2 and y > data.y and y < data.y2 then
+			self.hold_hover = data
+			
+			break
+		end
+	end
+	
+	if self.hold_hover then
+		local x, y = x - self.hold_hover.x, y - self.hold_hover.y
+		local w, h = self.hold_hover.w, self.hold_hover.h
+		
+		local ud = (y - h / 2) / (h / 2)
+		local lr = (x - w / 2) / (w / 2)
+		self.hold_dir = math.abs(ud) > math.abs(lr) and (ud < 0 and 1 or 2) or (lr < 0 and 3 or 4)
+	end
 end
 
 function TabHandler:ScrollBounds(w)
@@ -198,12 +374,16 @@ function TabHandler:PerformLayout(w, h)
 	self:PerformLayoutTab(self:GetActivePanel(), w, h)
 end
 
-function TabHandler:PerformLayoutTab(tab, w, h)
+function TabHandler:PerformLayoutTab(tab, w, h, now)
 	if not tab then return end
 	
 	tab.panel:SetPos(0, self.bar_size)
 	tab.panel:SetSize(w, h - self.bar_size)
-	tab.panel:InvalidateLayout()
+	if now then
+		tab.panel:InvalidateChildren(true)
+	else
+		tab.panel:InvalidateLayout()
+	end
 end
 
 function TabHandler:FocusPreviousChild(cur_focus)
@@ -356,6 +536,42 @@ end
 function TabHandler:SetTabSize(size)
 	self.tab_size = size
 	self:InvalidateLayout()
+end
+
+function TabHandler:GetSessionState()
+	local tabs = {}
+	for i, tab in ipairs(self.tabs) do
+		tabs[i] = {
+			name = tab.name,
+			type = tab.panel.ClassName,
+			state = tab.panel:GetSessionState()
+		}
+	end
+	
+	return {
+		tabs = tabs,
+		active_tab = self:GetActive()
+	}
+end
+
+function TabHandler:SetSessionState(state)
+	for i, tab in ipairs(state.tabs or {}) do
+		local panel = vgui.Create(tab.type)
+		local t = self:AddTab(tab.name, panel, i, state.active_tab ~= i)
+		self:PerformLayoutTab(t, self:GetWide(), self:GetTall())
+		
+		panel:SetSessionState(tab.state)
+	end
+end
+
+function TabHandler:ForceMovePanel(panel)
+	local tab = self:AddTab(panel.GetName and panel:GetName() or "Untitled", panel, self.active_tab + 1, true).tab
+	-- local tab = self:Add("SyperTab")
+	-- tab:Setup(self, panel.GetName and panel:GetName() or "Untitled", panel)
+	-- tab:SetParent(self)
+	
+	tab:OnMousePressed(MOUSE_LEFT)
+	self.hold_offset = {tab:GetWide() / 2, tab:GetTall() / 2}
 end
 
 vgui.Register("SyperTabHandler", TabHandler, "Panel")

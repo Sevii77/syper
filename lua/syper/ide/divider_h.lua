@@ -27,11 +27,6 @@ end
 function Divider:PerformLayout(w, h)
 	if not self.left then return end
 	if not self.right then return end
-	if self.first == nil then
-		self.first = true
-		
-		return
-	end
 	
 	if self.last_w then
 		local div = self.last_w - w
@@ -46,7 +41,11 @@ function Divider:PerformLayout(w, h)
 		
 		self.div_pos = math.Clamp(self.div_pos, self.min_size, w - self.min_size - self.div_size)
 	end
-	self.last_w = w
+	
+	if w ~= 64 or self.first then
+		self.first = true
+		self.last_w = w
+	end
 	
 	self.left:SetPos(0, 0)
 	self.left:SetSize(self.div_pos, h)
