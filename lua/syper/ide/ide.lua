@@ -313,7 +313,7 @@ end
 
 function IDE:AddTab(name, panel)
 	local tabhandler = self:GetActiveTabHandler()
-	tabhandler:AddTab(name or "Untitled", panel, tabhandler:GetActive() + 1)
+	tabhandler:AddTab(name or "untitled", panel, tabhandler:GetActive() + 1)
 	
 	if panel.SetName then
 		panel:SetName(name)

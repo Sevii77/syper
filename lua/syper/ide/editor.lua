@@ -659,6 +659,8 @@ function Act.fold_level(self, level)
 			cd:FoldLine(y)
 		end
 	end
+	
+	self:UpdateScrollbar()
 end
 
 function Act.unfold_all(self)
@@ -668,6 +670,8 @@ function Act.unfold_all(self)
 			cd:UnfoldLine(y)
 		end
 	end
+	
+	self:UpdateScrollbar()
 end
 
 ----------------------------------------

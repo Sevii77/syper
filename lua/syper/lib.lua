@@ -96,7 +96,7 @@ function Syper.validFileName(name)
 	if string.find(name, "[<>:\"/\\|%?%*]") then return false end
 	-- if string.find(name, "[\x00-\x1F]") then return false end
 	if system.IsWindows() and names[string.upper(string.match(name, "^([^%.]*)"))] then return false end
-	if not exts[Syper.getExtension(path)] then return false end
+	if not exts[Syper.getExtension(name)] then return false end
 	
 	return true
 end
