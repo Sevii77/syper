@@ -48,8 +48,6 @@ function Tab:OnMousePressed(key)
 			end
 			
 			if cc == 0 then
-				print(panel.ClassName)
-				print(panel:PosGlobal(), panel:GetSize())
 				local x, y = panel:PosGlobal()
 				local w, h = panel:GetSize()
 				self.handler.hold_layout[#self.handler.hold_layout + 1] = {

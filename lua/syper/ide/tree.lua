@@ -176,6 +176,8 @@ function Node:AddDirectory()
 			n:SetPath(path .. file, self.root_path)
 			n:GuessIcon()
 		end
+		
+		self.tree:InvalidateLayout()
 	end
 	
 	if self.root_path == "GITHUB" then
@@ -493,6 +495,8 @@ function Tree:AddDirectory(path, root_path)
 			n:SetPath(path .. file, root_path)
 			n:GuessIcon()
 		end
+		
+		self:InvalidateLayout()
 	end
 	
 	if root_path == "GITHUB" then
