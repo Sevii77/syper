@@ -752,7 +752,7 @@ function Editor:Init()
 		if not _.holding then return end
 		
 		local x, y = _:LocalCursorPos()
-		if math.sqrt((_.holding[1] - x) ^ 2 + (_.holding[2] - y) ^ 2) > 10 then
+		if math.sqrt((_.holding[1] - x) ^ 2 + (_.holding[2] - y) ^ 2) > 20 then
 			_.holding = nil
 			
 			local parent = self:GetParent()
@@ -1010,7 +1010,7 @@ function Editor:Init()
 		
 		-- autocomplete
 		local ac = self.autocomplete
-		if ac then
+		if ac and not self.content_data.lines[ac.y].fold then
 			local list = ac.list
 			local x, y = self:CharToRenderPos(ac.x, ac.y)
 			
@@ -1030,7 +1030,7 @@ function Editor:Init()
 		
 		-- live value
 		local lv = self.livevalue
-		if lv and not ac then
+		if lv and not ac and not self.content_data.lines[lv.y].fold then
 			local x, y = self:CharToRenderPos(lv.x, lv.y)
 			local w = surface.GetTextSize(lv.str)
 			x, y = x + th, y - th

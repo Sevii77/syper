@@ -104,13 +104,15 @@ end
 
 function Base:Replace(panel)
 	local parent = self:GetParent()
+	self:SetParent()
+	
 	if parent.ClassName == "SyperHDivider" then
 		if parent.left == self then
 			parent:SetLeft(panel)
 		else
 			parent:SetRight(panel)
 		end
-	elseif parent.ClassName == "SyperHDivider" then
+	elseif parent.ClassName == "SyperVDivider" then
 		if parent.top == self then
 			parent:SetTop(panel)
 		else
@@ -129,7 +131,6 @@ function Base:Replace(panel)
 		panel:SetParent(parent)
 	end
 	
-	self:SetParent()
 	self:Remove()
 end
 
@@ -163,10 +164,21 @@ function Base:PosGlobal()
 	return x, y
 end
 
+function Base:FindTillParent(name)
+	local parent = self
+	while true do
+		local p = parent:GetParent()
+		if p.ClassName == name then
+			return parent
+		end
+		parent = p
+	end
+end
+
 function Base:FindParent(name)
 	local p = self:GetParent()
 	while IsValid(p) do
-		if p:GetName() == name then
+		if p.ClassName == name then
 			return p
 		end
 		

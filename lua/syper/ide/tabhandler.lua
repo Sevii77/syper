@@ -67,10 +67,10 @@ function Tab:OnMousePressed(key)
 		-- TODO: make not look shit
 		local menu = DermaMenu()
 		menu:AddOption("Close", function()
-			self.handler:RemoveTab(self.handler:GetIndex(self.panel))
+			self.handler:RemoveTab(self.handler:GetIndex(self.panel:FindTillParent("SyperTabHandler")))
 		end)
 		menu:AddOption("Close Others", function()
-			local s = self.handler:GetIndex(self.panel) + 1
+			local s = self.handler:GetIndex(self.panel:FindTillParent("SyperTabHandler")) + 1
 			for _ = s, #self.handler.tabs do
 				self.handler:RemoveTab(s)
 			end
@@ -80,13 +80,13 @@ function Tab:OnMousePressed(key)
 			end
 		end)
 		menu:AddOption("Close To Right", function()
-			local s = self.handler:GetIndex(self.panel) + 1
+			local s = self.handler:GetIndex(self.panel:FindTillParent("SyperTabHandler")) + 1
 			for _ = s, #self.handler.tabs do
 				self.handler:RemoveTab(s)
 			end
 		end)
 		menu:AddOption("Close To Left", function()
-			for _ = 1, self.handler:GetIndex(self.panel) - 1 do
+			for _ = 1, self.handler:GetIndex(self.panel:FindTillParent("SyperTabHandler")) - 1 do
 				self.handler:RemoveTab(1)
 			end
 		end)
@@ -568,7 +568,7 @@ function TabHandler:SetSessionState(state)
 end
 
 function TabHandler:ForceMovePanel(panel)
-	local tab = self:AddTab(panel.GetName and panel:GetName() or "Untitled", panel, self.active_tab + 1, true).tab
+	local tab = self:AddTab(panel.GetName and panel:GetName() or "untitled", panel, self.active_tab + 1, true).tab
 	-- local tab = self:Add("SyperTab")
 	-- tab:Setup(self, panel.GetName and panel:GetName() or "Untitled", panel)
 	-- tab:SetParent(self)
