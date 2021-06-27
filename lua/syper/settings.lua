@@ -297,6 +297,8 @@ function Settings.loadSession(ide)
 		local x, y = math.min(session.x or 0, ScrW() - 640), math.min(session.y or 0, ScrH() - 480)
 		ide:SetPos(x, y)
 		ide:SetSize(math.min(session.w or 640, ScrW() - x), math.min(session.h or 480, ScrH() - y))
+		ide:InvalidateLayout(true)
+		ide:InvalidateChildren(true)
 	end
 	
 	do -- Filetree

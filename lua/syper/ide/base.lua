@@ -147,6 +147,22 @@ function Base:SafeUnparent()
 	end
 end
 
+-- cuz LocalToScreen is garbage
+function Base:PosGlobal()
+	local x, y = self:GetPos()
+	
+	local parent = self:GetParent()
+	while parent do
+		local lx, ly = parent:GetPos()
+		x = x + lx
+		y = y + ly
+		
+		parent = parent:GetParent()
+	end
+	
+	return x, y
+end
+
 function Base:FindParent(name)
 	local p = self:GetParent()
 	while IsValid(p) do

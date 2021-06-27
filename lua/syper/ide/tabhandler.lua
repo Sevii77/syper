@@ -48,7 +48,9 @@ function Tab:OnMousePressed(key)
 			end
 			
 			if cc == 0 then
-				local x, y = panel:LocalToScreen(0, 0)
+				print(panel.ClassName)
+				print(panel:PosGlobal(), panel:GetSize())
+				local x, y = panel:PosGlobal()
 				local w, h = panel:GetSize()
 				self.handler.hold_layout[#self.handler.hold_layout + 1] = {
 					panel = panel,
@@ -555,10 +557,13 @@ function TabHandler:GetSessionState()
 end
 
 function TabHandler:SetSessionState(state)
+	local x, y = self:GetPos()
+	y = y + self.bar_size
+	local w, h = self:GetSize()
 	for i, tab in ipairs(state.tabs or {}) do
 		local panel = vgui.Create(tab.type)
 		local t = self:AddTab(tab.name, panel, i, state.active_tab ~= i)
-		self:PerformLayoutTab(t, self:GetWide(), self:GetTall())
+		self:PerformLayoutTab(t, w, h, true)
 		
 		panel:SetSessionState(tab.state)
 	end

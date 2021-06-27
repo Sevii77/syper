@@ -42,9 +42,10 @@ function Divider:PerformLayout(w, h)
 		self.div_pos = math.Clamp(self.div_pos, self.min_size, w - self.min_size - self.div_size)
 	end
 	
-	if w ~= 64 or self.first then
-		self.first = true
+	if self.first ~= nil then
 		self.last_w = w
+	else
+		self.first = true
 	end
 	
 	self.left:SetPos(0, 0)
