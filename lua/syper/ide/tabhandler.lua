@@ -136,6 +136,7 @@ function Tab:OnMouseReleased(key)
 			if p.ClassName == "SyperTabHandler" then
 				local i = p:GetIndex(hvr)
 				p.tabs[i].panel = div
+				p.tabs[i].tab.panel = div
 				div:SetParent(p)
 			elseif p.ClassName == "SyperVDivider" then
 				if p.top == hvr then
