@@ -418,6 +418,81 @@ function ContentTable:UpdateLineData()
 	end
 end
 
+-- TODO: support bounds
+function ContentTable:Find(str, pattern, case, whole, bounds)
+	str = pattern and str or string.PatternSafe(str)
+	str = case and str or string.lower(str)
+	strs = {}
+	
+	for s in string.gmatch(str, "([^\n]*\n?)") do
+		if #s > 0 then
+			local i = #strs + 1
+			strs[i] = i == 1 and s or "^()" .. s
+		end
+	end
+	
+	strs[1] = "()" .. strs[1]
+	strs[#strs] = strs[#strs] .. "()"
+	
+	local finds = {}
+	for y, line in ipairs(self.lines) do
+		local linestr = case and line.str or string.lower(line.str)
+		local iter = string.gmatch(linestr, strs[1])
+		while true do
+			local vals = {iter()}
+			if #vals == 0 then break end
+			
+			local valid = true
+			for y2 = y + 1, y + #strs - 1 do
+				local line = self.lines[y2]
+				if not line then
+					valid = false
+					break
+				end
+				
+				local linestr = case and line.str or string.lower(line.str)
+				if not string.find(linestr, strs[y2 - y + 1]) then
+					valid = false
+					break
+				end
+				
+				local t = {string.match(linestr, strs[y2 - y + 1])}
+				for i = 2, #t do
+					vals[#vals + 1] = t[i]
+				end
+			end
+			
+			local s, e = vals[1], vals[#vals]
+			local linestr = self.lines[y + #strs - 1].str
+			linestr = case and linestr or string.lower(linestr)
+			if whole and ((s > 1 and string.match(string.sub(linestr, s - 1, s - 1), "[%w_\128-\255]")) or
+			   (e < #self.lines[y + #strs - 1].str and string.match(string.sub(linestr, e, e), "[%w_\128-\255]"))) then
+				valid = false
+			end
+			
+			if valid then
+				local bounds = {}
+				if #strs == 1 then
+					bounds[1] = {s = s, e = e - 1, y = y}
+				else
+					bounds[1] = {s = s, e = #self.lines[y].str, y = y}
+					for y2 = y + 1, y + #strs - 1 do
+						bounds[y2 - y + 1] = {s = 1, e = #self.lines[y2].str, y = y2}
+					end
+					bounds[#strs] = {s = 1, e = e - 1, y = y + #strs - 1}
+				end
+				
+				finds[#finds + 1] = {
+					finds = {unpack(vals, 2, #vals - 1)},
+					bounds = bounds
+				}
+			end
+		end
+	end
+	
+	return finds
+end
+
 function Lexer.createContentTable(lexer, mode)
 	return setmetatable({
 		lexer = lexer,

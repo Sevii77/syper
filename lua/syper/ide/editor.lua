@@ -124,6 +124,10 @@ end
 
 local Act = {}
 
+function Act.highlight(self, str, pattern, case, whole, bounds)
+	self:Highlight(str, pattern, case, whole, bounds)
+end
+
 function Act.undo(self)
 	self:Undo()
 	self:CheckNameChanged()
@@ -412,7 +416,7 @@ function Act.setcaret(self, new)
 	end
 	local caret = self.carets[caret_id]
 	
-	if RealTime() - self.last_click < 1 and stage ~= 0 and lx == sx and ly == sy then
+	if RealTime() - self.last_click < 0.5 and stage ~= 0 and lx == sx and ly == sy then
 		if stage == 2 then
 			caret.select_x = 1
 			caret.select_y = sy
@@ -697,6 +701,7 @@ function Editor:Init()
 	self.last_click = 0
 	self.mouse_captures = 0
 	self.content_render_width = 0
+	self.highlight = {}
 	
 	self:SetAllowNonAsciiCharacters(true)
 	self:SetMultiline(true)
@@ -813,7 +818,7 @@ function Editor:Init()
 	end
 	
 	self.gutter = self:Add("Panel")
-	self.gutter:Dock(LEFT)
+	-- self.gutter:Dock(LEFT)
 	self.gutter.OnMousePressed = function(_, key)
 		if key ~= MOUSE_LEFT then return end
 		
@@ -900,6 +905,7 @@ function Editor:Init()
 		end
 		
 		-- content
+		local done = {}
 		local y = self:FirstVisibleLine()
 		local ye = y + self:VisibleLineCount()
 		for ry = self:FirstVisibleLineRender(), self.content_data:GetLineCount() do
@@ -941,6 +947,17 @@ function Editor:Init()
 					surface.SetTextColor(settings.style_data.fold_foreground)
 					surface.SetTextPos(offset_x + 4, offset_y + 3)
 					surface.DrawText(fold_text)
+				end
+				
+				local highlight = self.highlight[ry]
+				if highlight then
+					surface.SetDrawColor(255, 255, 255, 255)
+					for i, v in ipairs(highlight) do
+						if done[v] then break end
+						done[v] = true
+						-- surface.DrawOutlinedRect(v.x, offset_y, v.w, th, 1)
+						surface.DrawLine(v[1], offset_y + v[2] * th, v[3], offset_y + v[4] * th)
+					end
 				end
 				
 				y = y + 1
@@ -1429,14 +1446,18 @@ function Editor:PerformLayout(w, h)
 		self.lineholder_dock:SetPos(self.gutter_size, 0)
 		self.lineholder_dock:SetSize(w - self.gutter_size - 12, h - 32)
 		
+		self.gutter:SetHeight(h - 32)
+		
 		self.scrollbar:SetPos(w - 12, 0)
 		self.scrollbar:SetSize(12, h - 32)
 		
-		self.scrollbar_h:SetPos(self.gutter_size, h - 32)
-		self.scrollbar_h:SetSize(w - self.gutter_size - 12, 12)
+		self.scrollbar_h:SetPos(0, h - 32)
+		self.scrollbar_h:SetSize(w - 12, 12)
 	else
 		self.lineholder_dock:SetPos(self.gutter_size, 0)
 		self.lineholder_dock:SetSize(w - self.gutter_size - 12, h - 20)
+		
+		self.gutter:SetHeight(h - 20)
 		
 		self.scrollbar:SetPos(w - 12)
 		self.scrollbar:SetSize(12, h - 20)
@@ -1559,6 +1580,62 @@ end
 
 function Editor:GetRealLineY(y)
 	return self.content_data.visual_lines[y]
+end
+
+-- TODO: laggy when highlighting something common, should be easy fix only doing those that are visible, aka make bounds work
+function Editor:Highlight(str, pattern, case, whole, bounds)
+	local finds = self.content_data:Find(str, pattern, case, whole, nil)
+	local lines = self.content_data.lines
+	
+	surface.SetFont("syper_syntax_1")
+	
+	self.highlight = {}
+	local function add(y, t)
+		self.highlight[y][#self.highlight[y] + 1] = t
+	end
+	
+	for i, find in ipairs(finds) do
+		local bounds = {}
+		for j, bound in ipairs(find.bounds) do
+			local offset = surface.GetTextSize(getRenderString(sub(lines[bound.y].str, 1, bound.s - 1)))
+			local str = getRenderString(sub(lines[bound.y].str, bound.s, bound.e))
+			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+			
+			self.highlight[bound.y] = self.highlight[bound.y] or {}
+			-- self.highlight[bound.y][#self.highlight[bound.y] + 1] = {x = offset, w = tw}
+			bounds[#bounds + 1] = {x = offset, w = tw, y = bound.y}
+		end
+		
+		local v = bounds[1]
+		add(v.y, {v.x, 0.1, v.x + v.w, 0.1})
+		
+		if #bounds == 1 then
+			add(v.y, {v.x + v.w, 0.1, v.x + v.w, 0.9})
+			add(v.y, {v.x, 0.1, v.x, 0.9})
+			add(v.y, {v.x, 0.9, v.x + v.w, 0.9})
+		else
+			add(v.y, {v.x + v.w, 0.1, v.x + v.w, 1})
+			add(v.y, {v.x, 0.1, v.x, 1})
+			
+			local s, e = v.x, v.x + v.w
+			for y = 1, #bounds - 1 do
+				local v = bounds[y + 1]
+				add(v.y, {v.x, 0, s, 0})
+				add(v.y, {v.x + v.w, 0, e, 0})
+				
+				if y == #bounds - 1 then
+					add(v.y, {v.x, 0, v.x, 0.9})
+					add(v.y, {v.x + v.w, 0, v.x + v.w, 0.9})
+					add(v.y, {v.x, 0.9, v.x + v.w, 0.9})
+				else
+					add(v.y, {v.x, 0, v.x, 1})
+					add(v.y, {v.x + v.w, 0, v.x + v.w, 1})
+				end
+				
+				s, e = v.x, v.x + v.w
+			end
+		end
+	end
 end
 
 function Editor:PushHistoryBlock()
@@ -2100,6 +2177,8 @@ function Editor:UpdateCaretInfo(i)
 		rawset(caret, "select_y", nil)
 	end
 	
+	self.highlight = {}
+	
 	-- select highlight
 	if caret.select_x then
 		local highlight = {}
@@ -2116,9 +2195,14 @@ function Editor:UpdateCaretInfo(i)
 		
 		if sy == ey then
 			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-			local str = getRenderStringSelected(sub(lines[sy].str, sx, ex))
+			local substr = sub(lines[sy].str, sx, ex)
+			local str = getRenderStringSelected(substr)
 			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
 			highlight[sy] = {offset, tw, str}
+			
+			if #self.carets == 1 and string.match(substr, "^[%w_\128-\255]+$") then
+				self:Highlight(substr, false, true, true, nil)
+			end
 		else
 			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
 			local str = getRenderStringSelected(sub(lines[sy].str, sx))
@@ -2285,7 +2369,7 @@ end
 
 function Editor:InsertStrAt(x, y, str, do_history)
 	if not self.editable then return end
-	Syper.IDE:SaveSession()
+	self.highlight = {}
 	
 	if do_history then
 		self:AddHistory({Editor.RemoveStrAt, Editor.InsertStrAt, x, y, len(str), str})
@@ -2322,6 +2406,7 @@ function Editor:InsertStrAt(x, y, str, do_history)
 	end
 	
 	self:MarkClearExcessCarets()
+	Syper.IDE:SaveSession()
 end
 
 function Editor:RemoveStr(length)
@@ -2370,7 +2455,7 @@ end
 -- TODO: removing large chucks with utf8 enabled will result in lag
 function Editor:RemoveStrAt(x, y, length, do_history)
 	if not self.editable then return end
-	Syper.IDE:SaveSession()
+	self.highlight = {}
 	
 	local cd = self.content_data
 	local rem = {}
@@ -2419,6 +2504,7 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 	end
 	
 	self:MarkClearExcessCarets()
+	Syper.IDE:SaveSession()
 	
 	local i = 0
 	while length > 0 do

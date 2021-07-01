@@ -4,6 +4,9 @@ return [=[{
 	"ctrl+shift+s": {"act": "save", "args": [true]},
 	"ctrl+g": {"act": "command_overlay", "args": [":"]},
 	
+	"ctrl+f": {"act": "find"},
+	"ctrl+h": {"act": "replace"},
+	
 	"ctrl+pageup": {"act": "focus", "args": ["prev"]},
 	"ctrl+pagedown": {"act": "focus", "args": ["next"]},
 	"alt+1": {"act": "focus", "args": ["tab", 1]},
