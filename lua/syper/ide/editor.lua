@@ -1527,6 +1527,19 @@ function Editor:OnVScroll(scroll)
 	end
 	
 	self.lineholder:SetPos(self.lineholder.x, scroll)
+	
+	if #self.carets == 1 and self.carets[1].select_x then
+		local caret = self.carets[1]
+		if caret.y == caret.select_y then
+			local y, y2 = self:GetViewBounds()
+			self:Highlight(caret.substring, false, true, true, {{
+				x = 1,
+				y = y,
+				x2 = #self.content_data.lines[y2].str,
+				y2 = y2
+			}})
+		end
+	end
 end
 
 function Editor:OnHScroll(scroll)
@@ -1538,7 +1551,7 @@ function Editor:OnHScroll(scroll)
 end
 
 function Editor:VisibleLineCount()
-	return math.ceil(self.lineholder_dock:GetTall() / settings.font_size)
+	return math.ceil(self.lineholder_dock:GetTall() / settings.font_size) + 1
 end
 
 function Editor:FirstVisibleLine()
@@ -1582,9 +1595,30 @@ function Editor:GetRealLineY(y)
 	return self.content_data.visual_lines[y]
 end
 
--- TODO: laggy when highlighting something common, should be easy fix only doing those that are visible, aka make bounds work
 function Editor:Highlight(str, pattern, case, whole, bounds)
-	local finds = self.content_data:Find(str, pattern, case, whole, nil)
+	local bounds_tbl
+	if bounds == true then
+		bounds_tbl = {}
+		for i, caret in ipairs(self.carets) do
+			local sx, sy = caret.x, caret.y
+			local ex, ey = caret.select_x, caret.select_y
+			
+			if ey < sy or (ex < sx and sy == ey) then
+				sx, sy, ex, ey = ex, ey, sx, sy
+			end
+			
+			bounds_tbl[i] = {
+				x = sx,
+				y = sy,
+				x2 = ex,
+				y2 = ey
+			}
+		end
+	elseif type(bounds) == "table" then
+		bounds_tbl = bounds
+	end
+	
+	local finds = self.content_data:Find(str, pattern, case, whole, bounds_tbl)
 	local lines = self.content_data.lines
 	
 	surface.SetFont("syper_syntax_1")
@@ -2199,9 +2233,15 @@ function Editor:UpdateCaretInfo(i)
 			local str = getRenderStringSelected(substr)
 			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
 			highlight[sy] = {offset, tw, str}
-			
+			rawset(caret, "substring", substr)
 			if #self.carets == 1 and string.match(substr, "^[%w_\128-\255]+$") then
-				self:Highlight(substr, false, true, true, nil)
+				local y, y2 = self:GetViewBounds()
+				self:Highlight(substr, false, true, true, {{
+					x = 1,
+					y = y,
+					x2 = #lines[y2].str,
+					y2 = y2
+				}})
 			end
 		else
 			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
