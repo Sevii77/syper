@@ -208,6 +208,21 @@ function ContentTable:LineExists(y)
 	return self.lines[y] ~= nil
 end
 
+function ContentTable:GetRenderString(y, offset)
+	local str = self.lines[y].str
+	local tabsize = Syper.Settings.settings.tab_size or 4
+	local ctrl = Syper.Settings.settings.show_control_characters
+	local s = ""
+	offset = offset or 0
+	
+	for i = 1, self.len(str) do
+		local c = self.sub(str, i, i)
+		s = s .. (c == "\t" and string.rep(" ", tabsize - ((self.len(s) + offset) % tabsize)) or ((not ctrl or string.find(c, "%C")) and c or ("<0x" .. string.byte(c) .. ">")))
+	end
+	
+	return s
+end
+
 function ContentTable:RebuildLine(y)
 	local lexer = self.lexer
 	local line = self.lines[y]
@@ -228,6 +243,7 @@ function ContentTable:RebuildLine(y)
 	line.tokens = {}
 	line.mode = mode
 	line.mode_repl = mode_repl
+	line.render_str = self:GetRenderString(y)
 	
 	if line.len > 2048 then
 		line.tokens[#line.tokens + 1] = {token = TOKEN.Other, str = line.str, mode = mode, mode_repl = mode_repl, s = 1, e = line.len - 1}

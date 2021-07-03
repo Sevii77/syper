@@ -41,6 +41,10 @@ hook.Add("SyperSettings", "syper_editor", settingsUpdate)
 
 ----------------------------------------
 
+-- TODO: replace this all with methods
+-- would also allow fixing of utf8 with binary file error
+
+-- TODO: use render_str from lexer line insetad
 local function getRenderString(str, offset)
 	local tabsize = settings.tab_size
 	local ctrl = settings.show_control_characters
@@ -1527,19 +1531,6 @@ function Editor:OnVScroll(scroll)
 	end
 	
 	self.lineholder:SetPos(self.lineholder.x, scroll)
-	
-	if #self.carets == 1 and self.carets[1].select_x then
-		local caret = self.carets[1]
-		if caret.y == caret.select_y then
-			local y, y2 = self:GetViewBounds()
-			self:Highlight(caret.substring, false, true, true, {{
-				x = 1,
-				y = y,
-				x2 = #self.content_data.lines[y2].str,
-				y2 = y2
-			}})
-		end
-	end
 end
 
 function Editor:OnHScroll(scroll)
@@ -1593,6 +1584,29 @@ end
 
 function Editor:GetRealLineY(y)
 	return self.content_data.visual_lines[y]
+end
+
+function Editor:SimpleHighlight(str)
+	self.highlight = {}
+	local function add(y, t)
+		self.highlight[y][#self.highlight[y] + 1] = t
+	end
+	
+	surface.SetFont("syper_syntax_1")
+	local tw = surface.GetTextSize("_")
+	local pattern = "%f[%w_\128-\255]()" .. string.PatternSafe(str) .. "()[^%w_\128-\255]"
+	for y, line in ipairs(self.content_data.lines) do
+		self.highlight[y] = self.highlight[y] or {}
+		for s, e in string.gmatch(line.render_str, pattern) do
+			s = (s - 1) * tw
+			e = (e - 1) * tw
+			
+			add(y, {s, 0.1, e, 0.1})
+			add(y, {e, 0.1, e, 0.9})
+			add(y, {s, 0.1, s, 0.9})
+			add(y, {s, 0.9, e, 0.9})
+		end
+	end
 end
 
 function Editor:Highlight(str, pattern, case, whole, bounds)
@@ -2233,15 +2247,16 @@ function Editor:UpdateCaretInfo(i)
 			local str = getRenderStringSelected(substr)
 			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
 			highlight[sy] = {offset, tw, str}
-			rawset(caret, "substring", substr)
+			
 			if #self.carets == 1 and string.match(substr, "^[%w_\128-\255]+$") then
 				local y, y2 = self:GetViewBounds()
-				self:Highlight(substr, false, true, true, {{
-					x = 1,
-					y = y,
-					x2 = #lines[y2].str,
-					y2 = y2
-				}})
+				self:SimpleHighlight(substr)
+				-- self:Highlight(substr, false, true, true, {{
+				-- 	x = 1,
+				-- 	y = y,
+				-- 	x2 = #lines[y2].str,
+				-- 	y2 = y2
+				-- }})
 			end
 		else
 			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
