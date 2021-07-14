@@ -6,6 +6,8 @@ return [=[{
 	"font_size": 14,
 	
 	// Syntax style
+	// monokai
+	// vs_darkplus
 	"style": "monokai",
 	
 	// Show the value of a variable

@@ -236,6 +236,9 @@ function Settings.loadSettings()
 		ErrorNoHalt("Invalid json in settings\n")
 	end
 	
+	local style = string.lower(Settings.settings.style)
+	Settings.settings.style = Settings.styles[style] and style or "monokai"
+	
 	Settings.settings.style_data = Settings.styles[Settings.settings.style]
 	Settings.rebuildStyle()
 	
