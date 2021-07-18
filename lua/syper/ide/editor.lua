@@ -132,6 +132,10 @@ function Act.highlight(self, str, pattern, case, whole, bounds)
 	self:Highlight(str, pattern, case, whole, bounds)
 end
 
+function Act.replace_highlight(self, replace)
+	self:Replace(replace)
+end
+
 function Act.undo(self)
 	self:Undo()
 	self:CheckNameChanged()
@@ -1586,7 +1590,15 @@ function Editor:GetRealLineY(y)
 	return self.content_data.visual_lines[y]
 end
 
+function Editor:ClearHighlight()
+	self.highlight_finds = nil
+	self.highlight_bounds = nil
+	self.highlight = {}
+end
+
 function Editor:SimpleHighlight(str)
+	if self.highlight_finds then return end
+	
 	self.highlight = {}
 	local function add(y, t)
 		self.highlight[y][#self.highlight[y] + 1] = t
@@ -1594,12 +1606,13 @@ function Editor:SimpleHighlight(str)
 	
 	surface.SetFont("syper_syntax_1")
 	local tw = surface.GetTextSize("_")
-	local pattern = "%f[%w_\128-\255]()" .. string.PatternSafe(str) .. "()[^%w_\128-\255]"
+	local pattern = "%f[%w_\128-\255]()(" .. string.PatternSafe(str) .. ")[^%w_\128-\255]"
 	for y, line in ipairs(self.content_data.lines) do
 		self.highlight[y] = self.highlight[y] or {}
-		for s, e in string.gmatch(line.render_str, pattern) do
-			s = (s - 1) * tw
-			e = (e - 1) * tw
+		for s, st in string.gmatch(line.render_str, pattern) do
+			local s = len(string.sub(line.render_str, 1, s - 1))
+			local e = (s + len(st)) * tw
+			local s = s * tw
 			
 			add(y, {s, 0.1, e, 0.1})
 			add(y, {e, 0.1, e, 0.9})
@@ -1632,26 +1645,31 @@ function Editor:Highlight(str, pattern, case, whole, bounds)
 		bounds_tbl = bounds
 	end
 	
-	local finds = self.content_data:Find(str, pattern, case, whole, bounds_tbl)
+	local finds, highlight = self.content_data:Find(str, pattern, case, whole, bounds_tbl)
+	self.highlight_finds = finds
+	self.highlight_bounds = highlight
 	local lines = self.content_data.lines
 	
 	surface.SetFont("syper_syntax_1")
 	
 	self.highlight = {}
 	local function add(y, t)
+		if t[1] == t[3] and t[2] == t[4] then return end
+		
+		self.highlight[y] = self.highlight[y] or {}
 		self.highlight[y][#self.highlight[y] + 1] = t
 	end
 	
-	for i, find in ipairs(finds) do
+	if #highlight > 1024 then return end
+	
+	for i, bound in ipairs(highlight) do
 		local bounds = {}
-		for j, bound in ipairs(find.bounds) do
-			local offset = surface.GetTextSize(getRenderString(sub(lines[bound.y].str, 1, bound.s - 1)))
-			local str = getRenderString(sub(lines[bound.y].str, bound.s, bound.e))
+		for y = bound.sy, bound.ey do
+			local offset = y == bound.sy and surface.GetTextSize(getRenderString(string.sub(lines[y].str, 1, bound.sx))) or 0
+			local str = getRenderString(string.sub(lines[y].str, y == bound.sy and bound.sx + 1 or 0, y == bound.ey and bound.ex or #lines[y].str))
 			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
 			
-			self.highlight[bound.y] = self.highlight[bound.y] or {}
-			-- self.highlight[bound.y][#self.highlight[bound.y] + 1] = {x = offset, w = tw}
-			bounds[#bounds + 1] = {x = offset, w = tw, y = bound.y}
+			bounds[#bounds + 1] = {x = offset, w = tw, y = y}
 		end
 		
 		local v = bounds[1]
@@ -1684,6 +1702,15 @@ function Editor:Highlight(str, pattern, case, whole, bounds)
 			end
 		end
 	end
+end
+
+function Editor:Replace(replace)
+	if not self.highlight_finds then return end
+	local org = self:GetContentStr()
+	self.content_data:Replace(self.highlight_finds, replace)
+	self:Rebuild()
+	self:AddHistory({Editor.SetContent2, Editor.SetContent2, nil, nil, org, self:GetContentStr()})
+	self:PushHistoryBlock()
 end
 
 function Editor:PushHistoryBlock()
@@ -1796,17 +1823,6 @@ function Editor:CheckNameChanged()
 		self:OnNameChange(name)
 	end
 	self.last_name = name
-end
-
-function Editor:GetContentStr()
-	local str = {}
-	for i = 1, self.content_data:GetLineCount() do
-		str[i] = self.content_data:GetLineStr(i)
-	end
-	
-	str[#str] = string.sub(str[#str], 1, -2)
-	
-	return table.concat(str, "")
 end
 
 function Editor:Save()
@@ -2117,6 +2133,7 @@ function Editor:SetCaret(i, x, y)
 	self:MarkClearExcessCarets()
 	self:MarkScrollToCaret()
 	self:HandleAutocomplete()
+	-- self:ClearHighlight()
 end
 
 function Editor:MoveCaret(i, x, y)
@@ -2203,6 +2220,7 @@ function Editor:MoveCaret(i, x, y)
 	self.caretblink = RealTime()
 	self:MarkClearExcessCarets()
 	self:MarkScrollToCaret()
+	-- self:ClearHighlight()
 end
 
 function Editor:UpdateCaretInfo(i)
@@ -2225,8 +2243,6 @@ function Editor:UpdateCaretInfo(i)
 		rawset(caret, "select_y", nil)
 	end
 	
-	self.highlight = {}
-	
 	-- select highlight
 	if caret.select_x then
 		local highlight = {}
@@ -2241,12 +2257,14 @@ function Editor:UpdateCaretInfo(i)
 		
 		surface.SetFont("syper_syntax_1")
 		
+		local highlight_str
 		if sy == ey then
 			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
 			local substr = sub(lines[sy].str, sx, ex)
 			local str = getRenderStringSelected(substr)
 			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
 			highlight[sy] = {offset, tw, str}
+			highlight_str = str
 			
 			if #self.carets == 1 and string.match(substr, "^[%w_\128-\255]+$") then
 				local y, y2 = self:GetViewBounds()
@@ -2263,19 +2281,25 @@ function Editor:UpdateCaretInfo(i)
 			local str = getRenderStringSelected(sub(lines[sy].str, sx))
 			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
 			highlight[sy] = {offset, tw, str}
+			highlight_str = str
 			
 			for y = sy + 1, ey - 1 do
 				local str = getRenderStringSelected(lines[y].str)
 				local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
 				highlight[y] = {0, tw, str}
+				highlight_str = highlight_str .. str
 			end
 			
 			local str = getRenderStringSelected(sub(lines[ey].str, 1, ex))
 			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
 			highlight[ey] = {0, tw, str}
+			highlight_str = highlight_str .. str
 		end
 		
 		rawset(caret, "select_highlight", highlight)
+		rawset(caret, "select_str", highlight_str)
+	else
+		rawset(caret, "select_str", nil)
 	end
 	
 	rawset(caret, "update_info", false)
@@ -2424,7 +2448,7 @@ end
 
 function Editor:InsertStrAt(x, y, str, do_history)
 	if not self.editable then return end
-	self.highlight = {}
+	self:ClearHighlight()
 	
 	if do_history then
 		self:AddHistory({Editor.RemoveStrAt, Editor.InsertStrAt, x, y, len(str), str})
@@ -2474,8 +2498,7 @@ function Editor:RemoveStr(length)
 	self:Rebuild()
 end
 
-function Editor:RemoveSelection()
-	local history = {}
+function Editor:RemoveSelection(dont_push)
 	local cs = self.content_data.lines
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_x then
@@ -2495,7 +2518,6 @@ function Editor:RemoveSelection()
 			end
 			
 			local rem, x, y, rem_str = self:RemoveStrAt(sx, sy, length, true)
-			history[#history + 1] = {Editor.InsertStrAt, Editor.RemoveStrAt, x, y, rem_str, rem}
 			-- self:SetCaret(caret_id, sx, sy)
 			
 			caret.select_x = nil
@@ -2503,14 +2525,17 @@ function Editor:RemoveSelection()
 		end
 	end
 	
-	self:PushHistoryBlock()
+	if not dont_push then
+		self:PushHistoryBlock()
+	end
+	
 	self:Rebuild()
 end
 
 -- TODO: removing large chucks with utf8 enabled will result in lag
 function Editor:RemoveStrAt(x, y, length, do_history)
 	if not self.editable then return end
-	self.highlight = {}
+	self:ClearHighlight()
 	
 	local cd = self.content_data
 	local rem = {}
@@ -2600,23 +2625,19 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 end
 
 function Editor:SetContent(str)
-	local lines, p = {}, 1
-	while true do
-		local s = string.find(str, "\n", p)
-		lines[#lines + 1] = string.sub(str, p, s)
-		if not s then break end
-		p = s + 1
-	end
-	
-	self.content_data = Lexer.createContentTable(self.lexer, self.mode)
-	for y, str in ipairs(lines) do
-		self.content_data:ModifyLine(y, str)
-	end
-	self.content_data:AppendToLine(#lines, "\n")
-	
+	self.content_data:SetFromString(str)
 	self:Rebuild()
 	self:MarkClearExcessCarets()
 	self:CheckNameChanged()
+end
+
+-- Used as histroy hack
+function Editor:SetContent2(_, _, str)
+	self:SetContent(str)
+end
+
+function Editor:GetContentStr()
+	return self.content_data:GetAsString()
 end
 
 vgui.Register("SyperEditor", Editor, "SyperBaseTextEntry")

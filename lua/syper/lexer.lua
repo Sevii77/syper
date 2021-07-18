@@ -244,6 +244,7 @@ function ContentTable:RebuildLine(y)
 	line.mode = mode
 	line.mode_repl = mode_repl
 	line.render_str = self:GetRenderString(y)
+	line.render_len = self.len(line.render_str)
 	
 	if line.len > 2048 then
 		line.tokens[#line.tokens + 1] = {token = TOKEN.Other, str = line.str, mode = mode, mode_repl = mode_repl, s = 1, e = line.len - 1}
@@ -434,87 +435,100 @@ function ContentTable:UpdateLineData()
 	end
 end
 
-function ContentTable:Find(str, pattern, case, whole, bounds)
-	str = pattern and str or string.PatternSafe(str)
-	str = case and str or string.lower(str)
-	local strs = {}
-	local finds = {}
-	
-	for s in string.gmatch(str, "([^\n]*\n?)") do
-		if #s > 0 then
-			local i = #strs + 1
-			strs[i] = i == 1 and s or "^()" .. s
-		end
+function ContentTable:GetAsString()
+	local str = {}
+	for i, line in ipairs(self.lines) do
+		str[i] = line.str
 	end
 	
-	strs[1] = "()" .. strs[1]
-	strs[#strs] = strs[#strs] .. "()"
+	str[#str] = string.sub(str[#str], 1, -2)
 	
-	bounds = bounds or {{x = 1, y = 1, x2 = #self.lines[#self.lines].str, y2 = #self.lines}}
-	for _, bound in ipairs(bounds) do
-		for y = bound.y, bound.y2 do
-			local line = self.lines[y]
-			local linestr = string.sub(case and line.str or string.lower(line.str), y == bound.y and bound.x or 1, y == bound.y2 and bound.x2 or #line.str)
-			local iter = string.gmatch(linestr, strs[1])
-			while true do
-				local vals = {iter()}
-				if #vals == 0 then break end
-				
-				local valid = true
-				for y2 = y + 1, y + #strs - 1 do
-					if y2 > bound.y then
-						valid = false
-						break
-					end
-					
-					local line = self.lines[y2]
-					if not line then
-						valid = false
-						break
-					end
-					
-					local linestr = string.sub(case and line.str or string.lower(line.str), y2 == bound.y and bound.x or 1, y2 == bound.y2 and bound.x2 or #line.str)
-					if not string.find(linestr, strs[y2 - y + 1]) then
-						valid = false
-						break
-					end
-					
-					local t = {string.match(linestr, strs[y2 - y + 1])}
-					for i = 2, #t do
-						vals[#vals + 1] = t[i]
-					end
-				end
-				
-				local s, e = vals[1], vals[#vals]
-				local linestr = self.lines[y + #strs - 1].str
-				linestr = case and linestr or string.lower(linestr)
-				if whole and ((s > 1 and string.match(string.sub(linestr, s - 1, s - 1), "[%w_\128-\255]")) or
-				   (e < #self.lines[y + #strs - 1].str and string.match(string.sub(linestr, e, e), "[%w_\128-\255]"))) then
-					valid = false
-				end
-				
-				if valid then
-					local bounds = {}
-					if #strs == 1 then
-						bounds[1] = {s = s, e = e - 1, y = y}
-					else
-						bounds[1] = {s = s, e = #self.lines[y].str, y = y}
-						for y2 = y + 1, y + #strs - 1 do
-							bounds[y2 - y + 1] = {s = 1, e = #self.lines[y2].str, y = y2}
-						end
-						bounds[#strs] = {s = 1, e = e - 1, y = y + #strs - 1}
-					end
-					
-					finds[#finds + 1] = {
-						finds = {unpack(vals, 2, #vals - 1)},
-						bounds = bounds
-					}
-				end
+	return table.concat(str, "")
+end
+
+function ContentTable:SetFromString(str)
+	local lines, p = {}, 1
+	while true do
+		local s = string.find(str, "\n", p)
+		lines[#lines + 1] = string.sub(str, p, s)
+		if not s then break end
+		p = s + 1
+	end
+	
+	self.lines = {}
+	for y, str in ipairs(lines) do
+		self:ModifyLine(y, str)
+	end
+	self:AppendToLine(#lines, "\n")
+end
+
+function ContentTable:Replace(find, replace)
+	local content = self:GetAsString()
+	local str, s = {}, 1
+	for i, v in ipairs(find) do
+		str[#str + 1] = string.sub(content, s, v[1])
+		
+		local repl = replace
+		for j, sub in ipairs(v[3]) do
+			repl = string.gsub(repl, "%f[%%]%%" .. j, sub)
+		end
+		str[#str + 1] = repl
+		
+		s = v[2] + 1
+	end
+	str[#str + 1] = string.sub(content, s, #content)
+	
+	self:SetFromString(table.concat(str, ""))
+end
+
+-- TODO: support bounds
+-- TODO: custom captures dont support capitalization if not case
+function ContentTable:Find(str, pattern, case, whole, bounds)
+	local content = self:GetAsString()
+	content = case and content or string.lower(content)
+	str = case and str or string.lower(str)
+	str = pattern and str or string.PatternSafe(str)
+	str = whole and "%f[%w_\128-\255]()(" .. str .. ")[^%w_\128-\255]" or "()(" .. str .. ")"
+	
+	local finds = {}
+	local iter = string.gmatch(content, str)
+	while true do
+		local vals = {iter()}
+		if #vals == 0 then break end
+		
+		finds[#finds + 1] = {vals[1] - 1, vals[1] - 1 + #vals[2], {unpack(vals, 3)}}
+	end
+	
+	local highlights = {}
+	local x, y = 0, 1
+	for _, find in ipairs(finds) do
+		local bounds = {}
+		local x2 = x
+		for y2 = y, #self.lines do
+			y = y2
+			x2 = x2 + #self.lines[y].str
+			
+			if not bounds.sx and find[1] < x2 then
+				bounds.sx = find[1] - x
+				bounds.sy = y
+			end
+			
+			if bounds.sx and find[2] <= x2 then
+				bounds.ex = find[2] - x
+				bounds.ey = y
+			end
+			
+			if bounds.ex then
+				break
+			else
+				x = x2
 			end
 		end
+		
+		highlights[#highlights + 1] = bounds
 	end
 	
-	return finds
+	return finds, highlights
 end
 
 function Lexer.createContentTable(lexer, mode)

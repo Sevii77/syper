@@ -2,8 +2,8 @@ return [=[{
 	// IDE stuff
 	"ctrl+s": {"act": "save"},
 	"ctrl+shift+s": {"act": "save", "args": [true]},
-	"ctrl+g": {"act": "command_overlay", "args": [":"]},
 	
+	"ctrl+g": {"act": "command_overlay", "args": [":"]},
 	"ctrl+f": {"act": "find"},
 	"ctrl+h": {"act": "replace"},
 	

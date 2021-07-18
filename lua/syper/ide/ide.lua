@@ -34,44 +34,83 @@ function Act.save(self, force_browser)
 end
 
 function Act.command_overlay(self, str)
-	if self.command_overlay then
-		self.command_overlay:Remove()
-		self.command_overlay = nil
-		self.command_overlay_tab:RequestFocus()
-		
-		return
+	if self.active_menu then
+		self.active_menu:Hide()
+		self.active_menu:Dock(NODOCK)
+		self:InvalidateLayout(true)
+		self.old_focus:RequestFocus()
+	else
+		self.old_focus = vgui.GetKeyboardFocus()
 	end
 	
-	local tab = vgui.GetKeyboardFocus()
-	self.command_overlay_tab = tab
-	local cmd = self:Add("DTextEntry")
-	cmd:SetHeight(30)
-	cmd:Dock(BOTTOM)
-	cmd:SetZPos(100)
-	cmd:SetText(str)
-	cmd:SetCaretPos(#str)
-	cmd:RequestFocus()
-	cmd.OnKeyCodeTyped = function(_, key)
-		if key == KEY_ENTER then
-			cmd:Remove()
-			self.command_overlay = nil
-			
-			local str = cmd:GetText()
-			local c = string.sub(str, 1, 1)
-			str = string.sub(str, 2)
-			if c == ":" then
-				local num = tonumber(string.match(str, "(%-?%d+)"))
-				if num then
-					tab.Act.goto_line(tab, num)
-				end
-			end
-			
-			tab:RequestFocus()
-		end
+	if self.active_menu ~= self.menu_command then
+		self.menu_command.entry:SetText(str)
+		self.menu_command.entry:SetCaretPos(#str)
+		self.menu_command.entry:RequestFocus()
 		
-		return self:OnKeyCodeTyped(key)
+		self.menu_command:Show()
+		self.menu_command:Dock(BOTTOM)
+		self.active_menu = self.menu_command
+	else
+		self.active_menu = nil
 	end
-	self.command_overlay = cmd
+end
+
+function Act.find(self)
+	if self.active_menu then
+		self.active_menu:Hide()
+		self.active_menu:Dock(NODOCK)
+		self:InvalidateLayout(true)
+		self.old_focus:RequestFocus()
+	else
+		self.old_focus = vgui.GetKeyboardFocus()
+	end
+	
+	if self.active_menu ~= self.menu_find then
+		self.menu_find:Show()
+		self.menu_find:Dock(BOTTOM)
+		self.active_menu = self.menu_find
+		
+		self.menu_find.find:RequestFocus()
+		self.menu_find.find:OnTextChanged()
+	else
+		if self.old_focus.ClassName == "SyperEditor" then
+			self.old_focus:ClearHighlight()
+		end
+		self.active_menu = nil
+	end
+end
+
+function Act.replace(self)
+	if self.active_menu then
+		self.active_menu:Hide()
+		self.active_menu:Dock(NODOCK)
+		self:InvalidateLayout(true)
+		self.old_focus:RequestFocus()
+	else
+		self.old_focus = vgui.GetKeyboardFocus()
+	end
+	
+	if self.active_menu ~= self.menu_replace then
+		self.menu_replace:Show()
+		self.menu_replace:Dock(BOTTOM)
+		self.active_menu = self.menu_replace
+		
+		self.menu_replace.regex:SetToggle(self.menu_find.regex:GetToggle())
+		self.menu_replace.case:SetToggle(self.menu_find.case:GetToggle())
+		self.menu_replace.whole:SetToggle(self.menu_find.whole:GetToggle())
+		-- self.menu_replace.selection:SetToggle(self.menu_find.selection:GetToggle())
+		self.menu_replace.wrap:SetToggle(self.menu_find.wrap:GetToggle())
+		self.menu_replace.find:SetValue(self.menu_find.find:GetValue())
+		self.menu_replace.find:SetCaretPos(self.menu_find.find:GetCaretPos())
+		self.menu_replace.find:RequestFocus()
+		self.menu_replace.find:OnTextChanged()
+	else
+		if self.old_focus.ClassName == "SyperEditor" then
+			self.old_focus:ClearHighlight()
+		end
+		self.active_menu = nil
+	end
 end
 
 function Act.focus(self, typ, index)
@@ -245,6 +284,476 @@ function IDE:Init()
 				self:AddTab(node.name, viewer)
 			end
 		end
+	end
+	
+	local function validFocus()
+		if self.old_focus.ClassName ~= "SyperEditor" then return false end
+		if not self.old_focus.highlight_bounds then return false end
+		if #self.old_focus.highlight_bounds == 0 then return false end
+		return true
+	end
+	
+	do
+		self.menu_command = self:Add("Panel")
+		self.menu_command:DockPadding(0, 4, 0, 0)
+		self.menu_command:SetHeight(30)
+		
+		local entry = self.menu_command:Add("SyperTextEntry")
+		entry:Dock(FILL)
+		entry:SetFont("syper_ide")
+		entry.OnKeyCodeTyped = function(_, key)
+			if key == KEY_ENTER then
+				self.menu_command:Hide()
+				self.menu_command:Dock(NODOCK)
+				self:InvalidateLayout(true)
+				self.old_focus:RequestFocus()
+				self.active_menu = nil
+				
+				local str = entry:GetText()
+				local c = string.sub(str, 1, 1)
+				str = string.sub(str, 2)
+				if c == ":" then
+					local num = tonumber(string.match(str, "(%-?%d+)"))
+					if num and self.old_focus.ClassName == "SyperEditor" then
+						self.old_focus.Act.goto_line(self.old_focus, num)
+					end
+				end
+			end
+			
+			return self:OnKeyCodeTyped(key)
+		end
+		self.menu_command.entry = entry
+		
+		self.menu_command:Hide()
+	end
+	
+	do
+		self.menu_find = self:Add("Panel")
+		self.menu_find:DockPadding(0, 4, 0, 0)
+		self.menu_find:SetHeight(30)
+		
+		-- TODO: better looking tooltips
+		local regex = self.menu_find:Add("SyperButton")
+		regex:DockMargin(0, 0, 2, 0)
+		regex:SetWidth(30)
+		regex:Dock(LEFT)
+		regex:SetIsToggle(true)
+		regex:SetFont("syper_ide")
+		regex:SetText(".*")
+		regex:SetTooltip("Patterns")
+		regex.OnToggled = function()
+			self.menu_find.find:OnTextChanged()
+		end
+		self.menu_find.regex = regex
+		
+		local case = self.menu_find:Add("SyperButton")
+		case:DockMargin(0, 0, 2, 0)
+		case:SetWidth(30)
+		case:Dock(LEFT)
+		case:SetIsToggle(true)
+		case:SetFont("syper_ide")
+		case:SetText("Aa")
+		case:SetTooltip("Case Sensitive")
+		case.OnToggled = function()
+			self.menu_find.find:OnTextChanged()
+		end
+		self.menu_find.case = case
+		
+		local whole = self.menu_find:Add("SyperButton")
+		whole:DockMargin(0, 0, 2, 0)
+		whole:SetWidth(30)
+		whole:Dock(LEFT)
+		whole:SetIsToggle(true)
+		whole:SetFont("syper_ide")
+		whole:SetText("\" \"")
+		whole:SetTooltip("Whole Word")
+		whole.OnToggled = function()
+			self.menu_find.find:OnTextChanged()
+		end
+		self.menu_find.whole = whole
+		
+		-- local selection = self.menu_find:Add("SyperButton")
+		-- selection:DockMargin(0, 0, 2, 0)
+		-- selection:SetWidth(30)
+		-- selection:Dock(LEFT)
+		-- selection:SetIsToggle(true)
+		-- selection:SetFont("syper_ide")
+		-- selection:SetText("[ ]")
+		-- selection:SetTooltip("In Selection")
+		-- selection.OnToggled = function()
+		-- 	self.menu_find.find:OnTextChanged()
+		-- end
+		-- self.menu_find.selection = selection
+		
+		local wrap = self.menu_find:Add("SyperButton")
+		wrap:DockMargin(0, 0, 2, 0)
+		wrap:SetWidth(30)
+		wrap:Dock(LEFT)
+		wrap:SetIsToggle(true)
+		wrap:SetFont("syper_ide")
+		wrap:SetText("^")
+		wrap:SetTooltip("Wrap")
+		self.menu_find.wrap = wrap
+		
+		local all = self.menu_find:Add("SyperButton")
+		all:DockMargin(2, 0, 0, 0)
+		all:SetWidth(100)
+		all:Dock(RIGHT)
+		all:SetFont("syper_ide")
+		all:SetText("Find All")
+		all.DoClick = function()
+			if not validFocus() then return end
+			
+			self.old_focus.carets = {}
+			for i, find in ipairs(self.old_focus.highlight_bounds) do
+				self.old_focus:AddCaret(find.ex + 1, find.ey, find.sx + 1, find.sy)
+				self.old_focus:UpdateCaretInfo(1)
+			end
+			
+			self.menu_find:Hide()
+			self.menu_find:Dock(NODOCK)
+			self:InvalidateLayout(true)
+			self.old_focus:RequestFocus()
+			self.old_focus:ClearHighlight()
+			self.active_menu = nil
+		end
+		
+		local prv = self.menu_find:Add("SyperButton")
+		prv:DockMargin(2, 0, 0, 0)
+		prv:SetWidth(100)
+		prv:Dock(RIGHT)
+		prv:SetFont("syper_ide")
+		prv:SetText("Find Prev")
+		prv.DoClick = function()
+			if not validFocus() then return end
+			
+			for i = 2, #self.old_focus.carets do
+				self.old_focus.carets[i] = nil
+			end
+			
+			local caret = self.old_focus.carets[1]
+			for i = #self.old_focus.highlight_bounds, 1, -1 do
+				local bounds = self.old_focus.highlight_bounds[i]
+				if bounds.ey < caret.y or (bounds.ey == caret.y and bounds.ex < caret.x - 1) then
+					caret.x = bounds.ex + 1
+					caret.y = bounds.ey
+					caret.select_x = bounds.sx + 1
+					caret.select_y = bounds.sy
+					self.old_focus:UpdateCaretInfo(1)
+					self.old_focus:MarkScrollToCaret()
+					
+					return
+				end
+			end
+			
+			if wrap:GetToggle() then
+				local bounds = self.old_focus.highlight_bounds[#self.old_focus.highlight_bounds]
+				caret.x = bounds.ex + 1
+				caret.y = bounds.ey
+				caret.select_x = bounds.sx + 1
+				caret.select_y = bounds.sy
+				self.old_focus:UpdateCaretInfo(1)
+				self.old_focus:MarkScrollToCaret()
+			end
+		end
+		
+		local nxt = self.menu_find:Add("SyperButton")
+		nxt:DockMargin(2, 0, 0, 0)
+		nxt:SetWidth(100)
+		nxt:Dock(RIGHT)
+		nxt:SetFont("syper_ide")
+		nxt:SetText("Find")
+		nxt.DoClick = function()
+			if not validFocus() then return end
+			
+			for i = 2, #self.old_focus.carets do
+				self.old_focus.carets[i] = nil
+			end
+			
+			local caret = self.old_focus.carets[1]
+			for i = 1, #self.old_focus.highlight_bounds do
+				local bounds = self.old_focus.highlight_bounds[i]
+				if bounds.ey > caret.y or (bounds.ey == caret.y and bounds.ex >= caret.x) then
+					caret.x = bounds.ex + 1
+					caret.y = bounds.ey
+					caret.select_x = bounds.sx + 1
+					caret.select_y = bounds.sy
+					self.old_focus:UpdateCaretInfo(1)
+					self.old_focus:MarkScrollToCaret()
+					
+					return
+				end
+			end
+			
+			if wrap:GetToggle() then
+				local bounds = self.old_focus.highlight_bounds[1]
+				caret.x = bounds.ex + 1
+				caret.y = bounds.ey
+				caret.select_x = bounds.sx + 1
+				caret.select_y = bounds.sy
+				self.old_focus:UpdateCaretInfo(1)
+				self.old_focus:MarkScrollToCaret()
+			end
+		end
+		
+		local find = self.menu_find:Add("SyperTextEntry")
+		find:Dock(FILL)
+		find:SetFont("syper_ide")
+		find.OnKeyCodeTyped = function(_, key)
+			if key == KEY_ENTER then
+				nxt:DoClick()
+			end
+			
+			return self:OnKeyCodeTyped(key)
+		end
+		find.OnTextChanged = function()
+			if self.old_focus.ClassName ~= "SyperEditor" then return end
+			
+			local str = find:GetValue()
+			if #str == 0 then
+				self.old_focus:ClearHighlight()
+				
+				return
+			end
+			
+			self.old_focus:Highlight(Syper.HandleStringEscapes(str), regex:GetToggle(), case:GetToggle(), whole:GetToggle(), nil)
+		end
+		self.menu_find.find = find
+		
+		self.menu_find:Hide()
+	end
+	
+	do
+		self.menu_replace = self:Add("Panel")
+		self.menu_replace:DockPadding(0, 4, 0, 0)
+		self.menu_replace:SetHeight(66)
+		
+		local top = self.menu_replace:Add("Panel")
+		top:SetHeight(30)
+		top:Dock(TOP)
+		
+		local regex = top:Add("SyperButton")
+		regex:DockMargin(0, 0, 2, 0)
+		regex:SetWidth(30)
+		regex:Dock(LEFT)
+		regex:SetIsToggle(true)
+		regex:SetFont("syper_ide")
+		regex:SetText(".*")
+		regex:SetTooltip("Patterns")
+		regex.OnToggled = function()
+			self.menu_find.regex:Toggle()
+		end
+		self.menu_replace.regex = regex
+		
+		local case = top:Add("SyperButton")
+		case:DockMargin(0, 0, 2, 0)
+		case:SetWidth(30)
+		case:Dock(LEFT)
+		case:SetIsToggle(true)
+		case:SetFont("syper_ide")
+		case:SetText("Aa")
+		case:SetTooltip("Case Sensitive")
+		case.OnToggled = function()
+			self.menu_find.case:Toggle()
+		end
+		self.menu_replace.case = case
+		
+		local find_text = top:Add("Panel")
+		find_text:DockMargin(0, 0, 2, 0)
+		find_text:SetWidth(80)
+		find_text:Dock(LEFT)
+		find_text.Paint = function(self, w, h)
+			surface.SetTextColor(settings.style_data.ide_foreground)
+			surface.SetFont("syper_ide")
+			local str = "Find:"
+			local tw, th = surface.GetTextSize(str)
+			surface.SetTextPos(w - tw, (h - th) / 2)
+			surface.DrawText(str)
+			
+			return true
+		end
+		
+		local all = top:Add("SyperButton")
+		all:DockMargin(2, 0, 0, 0)
+		all:SetWidth(100)
+		all:Dock(RIGHT)
+		all:SetFont("syper_ide")
+		all:SetText("Find All")
+		all.DoClick = function()
+			if not validFocus() then return end
+			
+			self.old_focus.carets = {}
+			for i, find in ipairs(self.old_focus.highlight_bounds) do
+				self.old_focus:AddCaret(find.ex + 1, find.ey, find.sx + 1, find.sy)
+				self.old_focus:UpdateCaretInfo(1)
+			end
+			
+			self.menu_find:Hide()
+			self.menu_find:Dock(NODOCK)
+			self:InvalidateLayout(true)
+			self.old_focus:RequestFocus()
+			self.old_focus:ClearHighlight()
+			self.active_menu = nil
+		end
+		
+		local nxt = top:Add("SyperButton")
+		nxt:DockMargin(2, 0, 0, 0)
+		nxt:SetWidth(100)
+		nxt:Dock(RIGHT)
+		nxt:SetFont("syper_ide")
+		nxt:SetText("Find")
+		nxt.DoClick = function()
+			if not validFocus() then return end
+			
+			for i = 2, #self.old_focus.carets do
+				self.old_focus.carets[i] = nil
+			end
+			
+			local caret = self.old_focus.carets[1]
+			for i = 1, #self.old_focus.highlight_bounds do
+				local bounds = self.old_focus.highlight_bounds[i]
+				if bounds.ey > caret.y or (bounds.ey == caret.y and bounds.ex >= caret.x) then
+					caret.x = bounds.ex + 1
+					caret.y = bounds.ey
+					caret.select_x = bounds.sx + 1
+					caret.select_y = bounds.sy
+					self.old_focus:UpdateCaretInfo(1)
+					self.old_focus:MarkScrollToCaret()
+					
+					return
+				end
+			end
+			
+			if wrap:GetToggle() then
+				local bounds = self.old_focus.highlight_bounds[1]
+				caret.x = bounds.ex + 1
+				caret.y = bounds.ey
+				caret.select_x = bounds.sx + 1
+				caret.select_y = bounds.sy
+				self.old_focus:UpdateCaretInfo(1)
+				self.old_focus:MarkScrollToCaret()
+			end
+		end
+		
+		local find = top:Add("SyperTextEntry")
+		find:Dock(FILL)
+		find:SetFont("syper_ide")
+		find.OnKeyCodeTyped = self.menu_find.find.OnKeyCodeTyped
+		find.OnTextChanged = function()
+			self.menu_find.find:SetValue(find:GetValue())
+			self.menu_find.find:OnTextChanged()
+		end
+		self.menu_replace.find = find
+		
+		
+		
+		local bottom = self.menu_replace:Add("Panel")
+		bottom:SetHeight(30)
+		bottom:Dock(BOTTOM)
+		
+		local whole = bottom:Add("SyperButton")
+		whole:DockMargin(0, 0, 2, 0)
+		whole:SetWidth(30)
+		whole:Dock(LEFT)
+		whole:SetIsToggle(true)
+		whole:SetFont("syper_ide")
+		whole:SetText("\" \"")
+		whole:SetTooltip("Whole Word")
+		whole.OnToggled = function()
+			self.menu_find.whole:Toggle()
+		end
+		self.menu_replace.whole = whole
+		
+		-- local selection = bottom:Add("SyperButton")
+		-- selection:DockMargin(0, 0, 2, 0)
+		-- selection:SetWidth(30)
+		-- selection:Dock(LEFT)
+		-- selection:SetIsToggle(true)
+		-- selection:SetFont("syper_ide")
+		-- selection:SetText("[ ]")
+		-- selection:SetTooltip("In Selection")
+		-- selection.DoClick = self.menu_find.selection.DoClick
+		-- self.menu_replace.selection = selection
+		
+		local wrap = bottom:Add("SyperButton")
+		wrap:DockMargin(0, 0, 2, 0)
+		wrap:SetWidth(30)
+		wrap:Dock(LEFT)
+		wrap:SetIsToggle(true)
+		wrap:SetFont("syper_ide")
+		wrap:SetText("^")
+		wrap:SetTooltip("Wrap")
+		wrap.OnToggled = function()
+			self.menu_find.wrap:Toggle()
+		end
+		self.menu_replace.wrap = wrap
+		
+		local replace_text = bottom:Add("Panel")
+		replace_text:DockMargin(0, 0, 2, 0)
+		replace_text:SetWidth(80)
+		replace_text:Dock(LEFT)
+		replace_text.Paint = function(self, w, h)
+			surface.SetTextColor(settings.style_data.ide_foreground)
+			surface.SetFont("syper_ide")
+			local str = "Replace:"
+			local tw, th = surface.GetTextSize(str)
+			surface.SetTextPos(w - tw, (h - th) / 2)
+			surface.DrawText(str)
+			
+			return true
+		end
+		
+		local repl_all = bottom:Add("SyperButton")
+		repl_all:DockMargin(2, 0, 0, 0)
+		repl_all:SetWidth(100)
+		repl_all:Dock(RIGHT)
+		repl_all:SetFont("syper_ide")
+		repl_all:SetText("Replace All")
+		repl_all.DoClick = function()
+			if not validFocus() then return end
+			
+			self.old_focus:Replace(self.menu_replace.replace:GetValue())
+			self.menu_find:Hide()
+			self.menu_find:Dock(NODOCK)
+			self:InvalidateLayout(true)
+			self.old_focus:RequestFocus()
+			self.old_focus:ClearHighlight()
+			self.active_menu = nil
+		end
+		
+		local repl_nxt = bottom:Add("SyperButton")
+		repl_nxt:DockMargin(2, 0, 0, 0)
+		repl_nxt:SetWidth(100)
+		repl_nxt:Dock(RIGHT)
+		repl_nxt:SetFont("syper_ide")
+		repl_nxt:SetText("Replace")
+		repl_nxt.DoClick = function()
+			if not validFocus() then return end
+			
+			nxt:DoClick()
+			self.old_focus:RemoveSelection()
+			self.old_focus:InsertStr(self.menu_replace.replace:GetValue())
+			
+			local caret = self.old_focus.carets[1]
+			caret.select_x = nil
+			caret.select_y = nil
+			self.old_focus:UpdateCaretInfo(1)
+			find:OnTextChanged()
+		end
+		
+		local replace = bottom:Add("SyperTextEntry")
+		replace:Dock(FILL)
+		replace:SetFont("syper_ide")
+		replace.OnKeyCodeTyped = function(_, key)
+			if key == KEY_ENTER then
+				repl_nxt:DoClick()
+			end
+			
+			return self:OnKeyCodeTyped(key)
+		end
+		self.menu_replace.replace = replace
+		
+		self.menu_replace:Hide()
 	end
 	
 	self.filetree_div = self:Add("SyperHDivider")

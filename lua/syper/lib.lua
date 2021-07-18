@@ -136,4 +136,22 @@ function Syper.SyntaxExtensionPathOverride(path, ext, syntax)
 	ext_overrides[path] = {ext, syntax}
 end
 
+function Syper.HandleStringEscapes(str)
+	local tbl = {
+		["%f[\\]\\a"] = "\a",
+		["%f[\\]\\b"] = "\b",
+		["%f[\\]\\f"] = "\f",
+		["%f[\\]\\n"] = "\n",
+		["%f[\\]\\r"] = "\r",
+		["%f[\\]\\t"] = "\t",
+		["%f[\\]\\v"] = "\v"
+	}
+	
+	for p, c in pairs(tbl) do
+		str = string.gsub(str, p, c)
+	end
+	
+	return str
+end
+
 Syper.SyntaxExtensionPathOverride("starfall/", "txt", "lua")
