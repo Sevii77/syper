@@ -624,7 +624,7 @@ function IDE:Init()
 				end
 			end
 			
-			if wrap:GetToggle() then
+			if self.menu_replace.wrap:GetToggle() then
 				local bounds = self.old_focus.highlight_bounds[1]
 				caret.x = bounds.ex + 1
 				caret.y = bounds.ey

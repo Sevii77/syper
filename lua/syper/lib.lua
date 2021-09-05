@@ -14,7 +14,7 @@
 -- end
 
 function Syper.jsonToTable(json)
-	local ct = Syper.Lexer.createContentTable(Syper.Lexer.lexers["json"], Syper.Mode.modes["json"])
+	local ct = Syper.Lexer.createContentTable(Syper.Lexer.lexers["json"], Syper.Mode.modes["json"], {tab_size = 0, utf8 = true, show_control_characters = false})
 	
 	local y, p = 1, 1
 	while true do

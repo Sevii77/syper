@@ -210,20 +210,30 @@ end
 
 function ContentTable:GetRenderString(y, offset)
 	local str = self.lines[y].str
-	local tabsize = Syper.Settings.settings.tab_size or 4
-	local ctrl = Syper.Settings.settings.show_control_characters
+	local tabsize = self.settings.tab_size
 	local s = ""
 	offset = offset or 0
 	
+	if self.settings.show_control_characters then
+		str =  string.gsub(str, "([^%C \t])", function(c) return "<0x" .. string.byte(c) .. ">" end)
+		str =  string.gsub(str, "( )", "·")
+		for i = 1, self.len(str) do
+			local c = self.sub(str, i, i)
+			s = s .. (c == "\t" and string.rep("-", tabsize - ((self.len(s) + offset) % tabsize)) or c)
+		end
+		
+		return s
+	end
+	
 	for i = 1, self.len(str) do
 		local c = self.sub(str, i, i)
-		s = s .. (c == "\t" and string.rep(" ", tabsize - ((self.len(s) + offset) % tabsize)) or ((not ctrl or string.find(c, "%C")) and c or ("<0x" .. string.byte(c) .. ">")))
+		s = s .. (c == "\t" and string.rep(" ", tabsize - ((self.len(s) + offset) % tabsize)) or c)
 	end
 	
 	return s
 end
 
-function ContentTable:RebuildLine(y)
+function ContentTable:RebuildLine(y, callback)
 	local lexer = self.lexer
 	local line = self.lines[y]
 	-- print("rebuild line " .. y)
@@ -245,6 +255,11 @@ function ContentTable:RebuildLine(y)
 	line.mode_repl = mode_repl
 	line.render_str = self:GetRenderString(y)
 	line.render_len = self.len(line.render_str)
+	
+	if callback and (SysTime() - self.last_time) > 0.03 then
+		coroutine.wait(0.03)
+		self.last_time = SysTime()
+	end
 	
 	if line.len > 2048 then
 		line.tokens[#line.tokens + 1] = {token = TOKEN.Other, str = line.str, mode = mode, mode_repl = mode_repl, s = 1, e = line.len - 1}
@@ -268,9 +283,9 @@ function ContentTable:RebuildLine(y)
 	return mode, mode_repl
 end
 
-function ContentTable:RebuildLines(y, c)
+function ContentTable:RebuildLines(y, c, callback)
 	for y = y, y + c do
-		local mode = self:RebuildLine(y)
+		local mode = self:RebuildLine(y, callback)
 		local next_line = self.lines[y + 1]
 		if not next_line or next_line.mode == mode then return y end
 	end
@@ -278,31 +293,42 @@ function ContentTable:RebuildLines(y, c)
 	return y + c
 end
 
-function ContentTable:RebuildDirty(max_lines)
-	local t = SysTime()
-	
-	local dirty = {}
-	for y, _ in pairs(self.dirty) do
-		dirty[#dirty + 1] = y
-	end
-	table.sort(dirty, function(a, b) return a < b end)
-	
-	local changed = {}
-	for i = 1, #dirty do
-		local y = dirty[i]
+function ContentTable:RebuildDirty(max_lines, callback)
+	local function cor()
+		local dirty = {}
+		for y, _ in pairs(self.dirty) do
+			dirty[#dirty + 1] = y
+		end
+		table.sort(dirty, function(a, b) return a < b end)
 		
-		if self.dirty[y] then
-			for y = y, self:RebuildLines(y, max_lines) do
-				self.dirty[y] = nil
-				-- changed[#changed + 1] = y
-				changed[y] = true
+		local changed = {}
+		for i = 1, #dirty do
+			local y = dirty[i]
+			
+			if self.dirty[y] then
+				for y = y, self:RebuildLines(y, max_lines, callback) do
+					self.dirty[y] = nil
+					changed[y] = true
+				end
 			end
 		end
+		
+		return changed
 	end
 	
-	-- print("rebuild dirty", SysTime() - t)
-	
-	return changed
+	if callback then
+		cor = coroutine.create(cor)
+		self.last_time = SysTime()
+		hook.Add("Tick", tostring(self), function()
+			local _, val = coroutine.resume(cor)
+			if val then
+				hook.Remove("Tick", tostring(self))
+				callback(val)
+			end
+		end)
+	else
+		return cor()
+	end
 end
 
 -- TODO: dont rebuild everything every time
@@ -531,15 +557,24 @@ function ContentTable:Find(str, pattern, case, whole, bounds)
 	return finds, highlights
 end
 
-function Lexer.createContentTable(lexer, mode)
+function ContentTable:UpdateSettings(settings)
+	self.settings = settings
+	self.len = settings.utf8 and utf8.len or string.len
+	self.sub = settings.utf8 and utf8.sub or string.sub
+end
+
+function Lexer.createContentTable(lexer, mode, settings)
+	settings = settings or Syper.Settings.settings
+	
 	return setmetatable({
 		lexer = lexer,
 		mode = mode,
 		lines = {},
 		visual_lines = {},
 		dirty = {},
-		len = Syper.Settings.settings.utf8 and utf8.len or string.len,
-		sub = Syper.Settings.settings.utf8 and utf8.sub or string.sub,
+		settings = settings,
+		len = settings.utf8 and utf8.len or string.len,
+		sub = settings.utf8 and utf8.sub or string.sub
 	}, ContentTable)
 end
 

@@ -20,7 +20,7 @@ return {
 	
 	[TOKEN.Identifier]          = {f = {r = 248, g = 248, b = 242, a = 255}},
 	[TOKEN.Other]               = {f = {r = 248, g = 248, b = 242, a = 255}},
-	[TOKEN.Whitespace]          = {f = {r = 248, g = 248, b = 242, a = 255}},
+	[TOKEN.Whitespace]          = {f = {r = 117, g = 113, b = 94,  a = 255}},
 	[TOKEN.Punctuation]         = {f = {r = 248, g = 248, b = 242, a = 255}},
 	[TOKEN.Error]               = {f = {r = 150, g = 0,   b = 80,  a = 255}, b = {r = 30, g = 0, b = 16, a = 255}},
 	[TOKEN.Comment]             = {f = {r = 117, g = 113, b = 94,  a = 255}},

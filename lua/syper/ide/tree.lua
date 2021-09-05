@@ -165,6 +165,8 @@ function Node:AddDirectory()
 	local path = string.sub(self.path, -1, -1) == "/" and self.path or self.path .. "/"
 	
 	local nodes = function(files, dirs)
+		if not self.AddNode then return end
+		
 		for _, dir in ipairs(dirs) do
 			local n = self:AddNode(dir, true)
 			n:SetPath(path .. dir, self.root_path)

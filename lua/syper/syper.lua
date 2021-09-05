@@ -1,6 +1,4 @@
-Syper = {
-	Version = "0.1.0"
-}
+Syper = {}
 
 do
 	local function add(path, client_only)

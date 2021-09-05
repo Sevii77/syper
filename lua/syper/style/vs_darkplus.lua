@@ -27,7 +27,7 @@ return {
 
 	[TOKEN.Identifier]          = VS_Control_Light, -- vars
 	[TOKEN.Other]               = {f = {r = 248, g = 248, b = 242, a = 255}}, -- Unknown
-	[TOKEN.Whitespace]          = {f = {r = 248, g = 248, b = 242, a = 255}},
+	[TOKEN.Whitespace]          = {f = {r = 106, g = 153, b = 85,  a = 255}},
 	[TOKEN.Punctuation]         = {f = {r = 248, g = 248, b = 242, a = 255}},
 	[TOKEN.Error]               = {f = {r = 244, g = 71, b = 61, a = 255}}, -- Bad syntax
 	[TOKEN.Comment]             = {f = {r = 106, g = 153, b = 85,  a = 255}},

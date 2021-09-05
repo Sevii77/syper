@@ -11,10 +11,10 @@ return [=[{
 	"style": "monokai",
 	
 	// Show the value of a variable
-	"livevalueview": true,
+	"livevalueview": false,
 	
 	// Autocomplete
-	"autocomplete": true,
+	"autocomplete": false,
 	
 	// Amount of lines to show
 	"autocomplete_lines": 5,
@@ -29,7 +29,8 @@ return [=[{
 	"gutter_relative": false,
 	
 	// Format of folded lines
-	"fold_format": "[%d]", // " ··· "
+	// " ··· "
+	"fold_format": "[%d]",
 	
 	// Tab size
 	"tab_size": 4,

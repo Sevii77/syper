@@ -6,123 +6,11 @@ local TOKEN = Syper.TOKEN
 ----------------------------------------
 
 local editors = {}
-
-local settings
-local utf8enabled, len, sub, ignore_chars, tab_str, tab_strsize
-local function settingsUpdate(s)
-	settings = s
-	
-	utf8enabled = settings.utf8
-	len = settings.utf8 and utf8.len or string.len
-	sub = settings.utf8 and utf8.sub or string.sub
-	
-	ignore_chars = {}
-	if settings.ignore_chars then
-		for _, c in ipairs(settings.ignore_chars) do
-			ignore_chars[c] = true
-		end
-	end
-	
-	if settings.tab_spaces then
-		tab_str = string.rep(" ", settings.tab_size)
-		tab_strsize = settings.tab_size
-	else
-		tab_str = "\t"
-		tab_strsize = 1
-	end
-	
+hook.Add("SyperSettings", "syper_editor", function(s)
 	for editor, _ in pairs(editors) do
-		editor:Refresh()
+		editor:UpdateSettings(s)
 	end
-end
-
-settingsUpdate(Settings.settings)
-hook.Add("SyperSettings", "syper_editor", settingsUpdate)
-
-----------------------------------------
-
--- TODO: replace this all with methods
--- would also allow fixing of utf8 with binary file error
-
--- TODO: use render_str from lexer line insetad
-local function getRenderString(str, offset)
-	local tabsize = settings.tab_size
-	local ctrl = settings.show_control_characters
-	local s = ""
-	offset = offset or 0
-	
-	for i = 1, len(str) do
-		local c = sub(str, i, i)
-		s = s .. (c == "\t" and string.rep(" ", tabsize - ((len(s) + offset) % tabsize)) or ((not ctrl or string.find(c, "%C")) and c or ("<0x" .. string.byte(c) .. ">")))
-	end
-	
-	return s
-end
-
-local function getRenderStringSelected(str, offset)
-	local tabsize = settings.tab_size
-	local s = ""
-	offset = offset or 0
-	
-	for i = 1, len(str) do
-		local c = sub(str, i, i)
-		s = s .. (c == "\t" and string.rep("-", tabsize - ((len(s) + offset) % tabsize)) or (c == " " and "·" or " "))
-	end
-	
-	return s
-end
-
-local function renderToRealPos(str, pos)
-	local tabsize = settings.tab_size
-	local l = 0
-	
-	for i = 1, len(str) do
-		local t = sub(str, i, i) == "\t"
-		local c = tabsize - (l % tabsize)
-		l = l + (t and c or 1)
-		-- if l >= pos then return i end
-		if (t and (l - math.floor(c / 2 - 0.5)) or l) >= pos then return i end
-	end
-	
-	return len(str)
-end
-
-local function realToRenderPos(str, pos)
-	local tabsize = settings.tab_size
-	local l = 0
-	
-	for i = 1, pos - 1 do
-		l = l + (sub(str, i, i) == "\t" and tabsize - (l % tabsize) or 1)
-	end
-	
-	return l + 1
-end
-
-local function getTabStr(x, line)
-	if settings.tab_spaces then
-		return string.rep(" ", settings.tab_size - ((x - 1) % settings.tab_size))
-	elseif settings.tab_inline_spaces then
-		if string.match(line, "%s*()") - 1 == x then
-			return "\t"
-		else
-			return string.rep(" ", settings.tab_size - ((x - 1) % settings.tab_size))
-		end
-	end
-	
-	return "\t"
-end
-
-local function matchWord(str, x)
-	local s, e = string.match(sub(str, 1, x), "()[%w_\128-\255]*$"), string.match(sub(str, x), "^[%w_\128-\255]*()") + string.len(sub(str, 1, x - 1))
-	
-	if not utf8enabled then
-		return s, e, sub(str, s, e)
-	else
-		local word = string.sub(str, s, e - 1)
-		local s = len(string.sub(str, 1, s - 1))
-		return s + 1, s + len(word) + 1, word
-	end
-end
+end)
 
 ----------------------------------------
 
@@ -164,14 +52,14 @@ function Act.copy(self)
 				sx, sy, ex, ey = ex, ey, sx, sy
 			end
 			
-			add(sub(lines[sy].str, sx, sy == ey and ex - 1 or -1))
+			add(self.sub(lines[sy].str, sx, sy == ey and ex - 1 or -1))
 			
 			for y = sy + 1, ey - 1 do
 				add(lines[y].str)
 			end
 			
 			if sy ~= ey then
-				add(sub(lines[ey].str, 1, ex - 1))
+				add(self.sub(lines[ey].str, 1, ex - 1))
 			end
 			
 			if caret_id > 1 then
@@ -222,11 +110,11 @@ function Act.newline(self)
 	-- TODO: fix bug with multiple caret smart auto indent
 	
 	for caret_id, caret in ipairs(self.carets) do
-		if settings.indent_auto then
+		if self.settings.indent_auto then
 			local spacer, e = string.match(self.content_data:GetLineStr(caret.y), "^([^\n%S]*)()")
 			local move = nil
 			
-			if settings.indent_smart then
+			if self.settings.indent_smart then
 				local tokens = self.content_data:GetLineTokens(caret.y)
 				for i = #tokens, 1, -1 do
 					local token = tokens[i]
@@ -251,13 +139,13 @@ function Act.newline(self)
 							if token2 then
 								local bracket = self.mode.bracket2[token2.str]
 								if bracket and not bracket.ignore_mode[token2.mode] then
-									self:InsertStrAt(caret.x, caret.y, "\n" .. spacer .. tab_str, true)
+									self:InsertStrAt(caret.x, caret.y, "\n" .. spacer .. self.tab_str, true)
 									move = -e
 								else
-									spacer = spacer .. tab_str
+									spacer = spacer .. self.tab_str
 								end
 							else
-								spacer = spacer .. tab_str
+								spacer = spacer .. self.tab_str
 							end
 						end
 						
@@ -284,12 +172,12 @@ function Act.indent(self)
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_y and caret.select_y ~= caret.y then
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
-				self:InsertStrAt(1, y, tab_str, true)
+				self:InsertStrAt(1, y, self.tab_str, true)
 			end
 			
-			caret.select_x = caret.select_x + tab_strsize
+			caret.select_x = caret.select_x + self.tab_strsize
 		else
-			self:InsertStrAt(caret.x, caret.y, getTabStr(caret.x, self.content_data:GetLineStr(caret.y)), true)
+			self:InsertStrAt(caret.x, caret.y, self:GetTabStr(caret.x, self.content_data:GetLineStr(caret.y)), true)
 		end
 	end
 	
@@ -302,16 +190,16 @@ function Act.outdent(self)
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.select_y and caret.select_y ~= caret.y then
 			for y = math.min(caret.y, caret.select_y), math.max(caret.y, caret.select_y) do
-				if string.sub(lines[y].str, 1, tab_strsize) == tab_str then
-					self:RemoveStrAt(1, y, tab_strsize, true)
+				if string.sub(lines[y].str, 1, self.tab_strsize) == self.tab_str then
+					self:RemoveStrAt(1, y, self.tab_strsize, true)
 					
 					if y == caret.select_y then
-						caret.select_x = caret.select_x - tab_strsize
+						caret.select_x = caret.select_x - self.tab_strsize
 					end
 				end
 			end
 		else
-			self:InsertStrAt(caret.x, caret.y, getTabStr(caret.x, lines[caret.y].str), true)
+			self:InsertStrAt(caret.x, caret.y, self:GetTabStr(caret.x, lines[caret.y].str), true)
 		end
 	end
 	
@@ -324,16 +212,16 @@ function Act.reindent_file(self)
 		local cur_level = 0
 		local s = 1
 		while s do
-			s = string.match(line.str, "^" .. tab_str .. "()", s)
+			s = string.match(line.str, "^" .. self.tab_str .. "()", s)
 			if s then
 				cur_level = cur_level + 1
 			end
 		end
 		
 		if cur_level > line.indent_level then
-			self:RemoveStrAt(1, y, (cur_level - line.indent_level) * tab_strsize, true)
+			self:RemoveStrAt(1, y, (cur_level - line.indent_level) * self.tab_strsize, true)
 		elseif cur_level < line.indent_level then
-			self:InsertStrAt(1, y, string.rep(tab_str, line.indent_level - cur_level), true)
+			self:InsertStrAt(1, y, string.rep(self.tab_str, line.indent_level - cur_level), true)
 		end
 	end
 	
@@ -435,7 +323,7 @@ function Act.setcaret(self, new)
 			end
 			stage = 0
 		else
-			local s, e = matchWord(self.content_data:GetLineStr(sy), sx)
+			local s, e = self:MatchWord(self.content_data:GetLineStr(sy), sx)
 			caret.select_x = s
 			caret.select_y = sy
 			self:SetCaret(caret_id, e, sy)
@@ -495,12 +383,12 @@ function Act.delete(self, typ, count_dir)
 	if self:HasSelection() then
 		self:RemoveSelection()
 	elseif typ == "char" then
-		if count_dir == -1 and settings.auto_closing_bracket then
+		if count_dir == -1 and self.settings.auto_closing_bracket then
 			local lines = self.content_data.lines
 			for caret_id, caret in ipairs(self.carets) do
 				if caret.x > 1 and caret.x <= lines[caret.y].len then
-					local bracket = self.mode.bracket[sub(lines[caret.y].str, caret.x - 1, caret.x - 1)]
-					if bracket and sub(lines[caret.y].str, caret.x, caret.x) == bracket.close then
+					local bracket = self.mode.bracket[self.sub(lines[caret.y].str, caret.x - 1, caret.x - 1)]
+					if bracket and self.sub(lines[caret.y].str, caret.x, caret.x) == bracket.close then
 						self:RemoveStrAt(caret.x + 1, caret.y, -2, true)
 					else
 						self:RemoveStrAt(caret.x, caret.y, -1, true)
@@ -529,7 +417,7 @@ function Act.delete(self, typ, count_dir)
 					goto SKIP
 				end
 				
-				local e = select(2, string.find(sub(line, caret.x), "[^%w_]*[%w_]+"))
+				local e = select(2, string.find(self.sub(line, caret.x), "[^%w_]*[%w_]+"))
 				self:RemoveStrAt(caret.x, caret.y, e or (ll + 1 - caret.x), true)
 			else
 				local line = lines[caret.y].str
@@ -541,7 +429,7 @@ function Act.delete(self, typ, count_dir)
 					goto SKIP
 				end
 				
-				local s = string.find(sub(line, 1, caret.x - 1), "[%w_]*[^%w_]*$")
+				local s = string.find(self.sub(line, 1, caret.x - 1), "[%w_]*[^%w_]*$")
 				self:RemoveStrAt(caret.x, caret.y, s - caret.x, true)
 			end
 			
@@ -610,7 +498,7 @@ function Act.move(self, typ, count_dir, selc)
 					goto SKIP
 				end
 				
-				local e = select(2, string.find(sub(line, caret.x), "[^%w_]*[%w_]+"))
+				local e = select(2, string.find(self.sub(line, caret.x), "[^%w_]*[%w_]+"))
 				self:SetCaret(caret_id, e and (e + caret.x) or (ll + 1), nil)
 			else
 				local line = lines[caret.y].str
@@ -622,7 +510,7 @@ function Act.move(self, typ, count_dir, selc)
 					goto SKIP
 				end
 				
-				local s = string.find(sub(line, 1, caret.x - 1), "[%w_]*[^%w_]*$")
+				local s = string.find(self.sub(line, 1, caret.x - 1), "[%w_]*[^%w_]*$")
 				self:SetCaret(caret_id, s, nil)
 			end
 			
@@ -635,7 +523,7 @@ function Act.move(self, typ, count_dir, selc)
 			handleSelect(caret)
 			
 			self:MoveCaret(caret_id, nil, count_dir * self:VisibleLineCount())
-			self:DoScroll(count_dir * self:VisibleLineCount() * settings.font_size)
+			self:DoScroll(count_dir * self:VisibleLineCount() * self.settings.font_size)
 		elseif typ == "bol" then
 			handleSelect(caret)
 			
@@ -661,7 +549,7 @@ end
 
 function Act.goto_line(self, line)
 	self:ClearCarets()
-	self:SetCaret(1, 1, math.Clamp(settings.gutter_relative and (self.carets[1].y + line) or line, 1, self.content_data:GetLineCount()))
+	self:SetCaret(1, 1, math.Clamp(self.settings.gutter_relative and (self.carets[1].y + line) or line, 1, self.content_data:GetLineCount()))
 end
 
 function Act.fold_level(self, level)
@@ -718,15 +606,15 @@ function Editor:Init()
 	self.infobar:SetHeight(20)
 	self.infobar:Dock(BOTTOM)
 	self.infobar.Paint = function(_, w, h)
-		surface.SetDrawColor(settings.style_data.ide_background)
+		surface.SetDrawColor(self.settings.style_data.ide_background)
 		surface.DrawRect(0, 4, w, h - 4)
 		
-		surface.SetDrawColor(settings.style_data.gutter_background)
+		surface.SetDrawColor(self.settings.style_data.gutter_background)
 		surface.DrawRect(0, 0, w, 4)
 		
 		surface.SetFont("syper_ide")
 		
-		local str = #self.carets == 1 and string.format("Line %s, Column %s", self.carets[1].y, realToRenderPos(self.content_data:GetLineStr(self.carets[1].y), self.carets[1].x)) or (#self.carets .. " Carets")
+		local str = #self.carets == 1 and string.format("Line %s, Column %s", self.carets[1].y, self:RealToRenderPos(self.content_data:GetLineStr(self.carets[1].y), self.carets[1].x)) or (#self.carets .. " Carets")
 		if self:HasSelection() then
 			local count = 0
 			for caret_id, caret in ipairs(self.carets) do
@@ -757,7 +645,7 @@ function Editor:Init()
 		end
 		
 		local tw, th = surface.GetTextSize(str)
-		surface.SetTextColor(settings.style_data.ide_disabled)
+		surface.SetTextColor(self.settings.style_data.ide_disabled)
 		surface.SetTextPos((h - th) / 2 + 2, h / 2 - th / 2 + 2)
 		surface.DrawText(str)
 	end
@@ -818,7 +706,7 @@ function Editor:Init()
 		local str = _:GetText()
 		local tw, th = surface.GetTextSize(str)
 		
-		surface.SetTextColor(settings.style_data.ide_disabled)
+		surface.SetTextColor(self.settings.style_data.ide_disabled)
 		surface.SetTextPos(w / 2 - tw / 2, h / 2 - th / 2 + 2)
 		surface.DrawText(str)
 		
@@ -845,11 +733,13 @@ function Editor:Init()
 		return
 	end
 	self.gutter.Paint = function(_, w, h)
-		local th = settings.font_size
+		if self.loading then return end
 		
-		surface.SetDrawColor(settings.style_data.gutter_background)
+		local th = self.settings.font_size
+		
+		surface.SetDrawColor(self.settings.style_data.gutter_background)
 		surface.DrawRect(0, 0, w, h)
-		surface.SetDrawColor(settings.style_data.gutter_foreground)
+		surface.SetDrawColor(self.settings.style_data.gutter_foreground)
 		
 		local y = self:FirstVisibleLine()
 		local ye = y + self:VisibleLineCount()
@@ -858,11 +748,11 @@ function Editor:Init()
 			if not line.fold then
 				local offset_y = y * th - th - self.scrollbar.Scroll
 				
-				local linenum = tostring(settings.gutter_relative and ry - self.carets[1].y or ry)
-				surface.SetTextColor(settings.style_data.gutter_foreground)
+				local linenum = tostring(self.settings.gutter_relative and ry - self.carets[1].y or ry)
+				surface.SetTextColor(self.settings.style_data.gutter_foreground)
 				surface.SetFont("syper_syntax_1")
 				local tw = surface.GetTextSize(linenum)
-				surface.SetTextPos(w - tw - settings.gutter_margin, offset_y)
+				surface.SetTextPos(w - tw - self.settings.gutter_margin, offset_y)
 				surface.DrawText(linenum)
 				
 				if line.foldable then
@@ -889,12 +779,14 @@ function Editor:Init()
 	self.lineholder = self.lineholder_dock:Add("Panel")
 	self.lineholder:SetMouseInputEnabled(false)
 	self.lineholder.Paint = function(_, w, h)
-		local th = settings.font_size
+		if self.loading then return end
+		
+		local th = self.settings.font_size
 		
 		-- caret select
 		surface.SetFont("syper_syntax_1")
-		surface.SetDrawColor(settings.style_data.highlight)
-		surface.SetTextColor(settings.style_data.highlight2)
+		surface.SetDrawColor(self.settings.style_data.highlight)
+		surface.SetTextColor(self.settings.style_data.highlight2)
 		
 		local sy, ey = self:GetViewBounds()
 		for _, caret in ipairs(self.carets) do
@@ -945,14 +837,14 @@ function Editor:Init()
 						fold_count = fold_count + 1
 					end
 					
-					local fold_text = string.format(settings.fold_format, fold_count)
+					local fold_text = string.format(self.settings.fold_format, fold_count)
 					surface.SetFont("syper_syntax_fold")
 					local tw = surface.GetTextSize(fold_text)
 					
-					surface.SetDrawColor(settings.style_data.fold_background)
+					surface.SetDrawColor(self.settings.style_data.fold_background)
 					surface.DrawRect(offset_x + 4, offset_y + 3, tw, th - 5)
 					
-					surface.SetTextColor(settings.style_data.fold_foreground)
+					surface.SetTextColor(self.settings.style_data.fold_foreground)
 					surface.SetTextPos(offset_x + 4, offset_y + 3)
 					surface.DrawText(fold_text)
 				end
@@ -976,11 +868,11 @@ function Editor:Init()
 		if not self:HasFocus() then return end
 		
 		local lines = self.content_data.lines
-		local th = settings.font_size
+		local th = self.settings.font_size
 		
 		-- carets
 		surface.SetFont("syper_syntax_1")
-		local clr = settings.style_data.caret
+		local clr = self.settings.style_data.caret
 		surface.SetDrawColor(clr.r, clr.g, clr.b, math.Clamp(math.cos((RealTime() - self.caretblink) * math.pi * 1.6) * 255 + 128, 0, 255))
 		
 		for caret_id, caret in ipairs(self.carets) do
@@ -999,9 +891,9 @@ function Editor:Init()
 				end
 			end
 			
-			local offset = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1)))
+			local offset = surface.GetTextSize(self:GetRenderString(self.sub(self.content_data:GetLineStr(y), 1, x - 1)))
 			if self.caretinsert then
-				local str = getRenderString(sub(self.content_data:GetLineStr(y), x, x))
+				local str = self:GetRenderString(self.sub(self.content_data:GetLineStr(y), x, x))
 				local w = surface.GetTextSize(str == "\n" and " " or str)
 				surface.DrawRect(offset, vy * th - 2, w, 2)
 			else
@@ -1021,13 +913,13 @@ function Editor:Init()
 				if token and token.pair then
 					local x, y = token.pair.x, token.pair.y
 					
-					local offset = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, 1, token.s - 1)))
-					local tw = surface.GetTextSize(getRenderString(sub(lines[caret.y].str, token.s, token.e)))
+					local offset = surface.GetTextSize(self:GetRenderString(self.sub(lines[caret.y].str, 1, token.s - 1)))
+					local tw = surface.GetTextSize(self:GetRenderString(self.sub(lines[caret.y].str, token.s, token.e)))
 					surface.DrawRect(offset, self:GetVisualLineY(caret.y) * th - 1, tw, 1)
 					
 					local token = lines[y].tokens[x]
-					local offset = surface.GetTextSize(getRenderString(sub(lines[y].str, 1, token.s - 1)))
-					local tw = surface.GetTextSize(getRenderString(sub(lines[y].str, token.s, token.e)))
+					local offset = surface.GetTextSize(self:GetRenderString(self.sub(lines[y].str, 1, token.s - 1)))
+					local tw = surface.GetTextSize(self:GetRenderString(self.sub(lines[y].str, token.s, token.e)))
 					surface.DrawRect(offset, self:GetVisualLineY(y) * th - 1, tw, 1)
 				end
 			end
@@ -1039,15 +931,15 @@ function Editor:Init()
 			local list = ac.list
 			local x, y = self:CharToRenderPos(ac.x, ac.y)
 			
-			surface.SetDrawColor(settings.style_data.gutter_background)
-			surface.DrawRect(x, y, 200, settings.autocomplete_lines * th)
+			surface.SetDrawColor(self.settings.style_data.gutter_background)
+			surface.DrawRect(x, y, 200, self.settings.autocomplete_lines * th)
 			
-			surface.SetDrawColor(settings.style_data.gutter_foreground)
+			surface.SetDrawColor(self.settings.style_data.gutter_foreground)
 			surface.DrawRect(x, y + (ac.selected - ac.scroll - 1) * th, 200, th)
 			
 			surface.SetFont("syper_syntax_1")
-			surface.SetTextColor(settings.style_data.caret)
-			for i = ac.scroll + 1, math.min(#ac.list, ac.scroll + settings.autocomplete_lines) do
+			surface.SetTextColor(self.settings.style_data.caret)
+			for i = ac.scroll + 1, math.min(#ac.list, ac.scroll + self.settings.autocomplete_lines) do
 				surface.SetTextPos(x, y + (i - ac.scroll - 1) * th)
 				surface.DrawText(ac.list[i])
 			end
@@ -1060,11 +952,11 @@ function Editor:Init()
 			local w = surface.GetTextSize(lv.str)
 			x, y = x + th, y - th
 			
-			surface.SetDrawColor(settings.style_data.gutter_background)
+			surface.SetDrawColor(self.settings.style_data.gutter_background)
 			surface.DrawRect(x, y, w + th * 2, th)
 			
 			surface.SetFont("syper_syntax_1")
-			surface.SetTextColor(settings.style_data.caret)
+			surface.SetTextColor(self.settings.style_data.caret)
 			surface.SetTextPos(x + th * 1, y)
 			surface.DrawText(lv.str)
 		end
@@ -1081,13 +973,13 @@ function Editor:Init()
 	end
 	self.scrollbar.OnMousePressed = function()
 		local y = select(2, self.scrollbar:CursorPos())
-		self:DoScroll((y > self.scrollbar.btnGrip.y and 1 or -1) * self:VisibleLineCount() * settings.font_size)
+		self:DoScroll((y > self.scrollbar.btnGrip.y and 1 or -1) * self:VisibleLineCount() * self.settings.font_size)
 	end
 	self.scrollbar.Paint = function(_, w, h)
-		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.highlight)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, self.settings.style_data.highlight)
 	end
 	self.scrollbar.btnGrip.Paint = function(_, w, h)
-		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.gutter_foreground)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, self.settings.style_data.gutter_foreground)
 	end
 	
 	self.scrolltarget_h = 0
@@ -1102,15 +994,16 @@ function Editor:Init()
 		self:DoScrollH((x > self.scrollbar_h.btnGrip.x and 1 or -1) * self.lineholder_dock:GetWide())
 	end
 	self.scrollbar_h.Paint = function(_, w, h)
-		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.highlight)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, self.settings.style_data.highlight)
 	end
 	self.scrollbar_h.btnGrip.Paint = function(_, w, h)
-		draw.RoundedBox(4, 3, 3, w - 6, h - 6, settings.style_data.gutter_foreground)
+		draw.RoundedBox(4, 3, 3, w - 6, h - 6, self.settings.style_data.gutter_foreground)
 	end
 	
-	self.content_data = Lexer.createContentTable(self.lexer, self.mode)
+	self.content_data = Lexer.createContentTable(self.lexer, self.mode, self.settings)
 	self.content_data:ModifyLine(1, "\n")
 	
+	self:UpdateSettings(Settings.settings)
 	self:SetCursor("beam")
 	self:SetSyntax("text")
 	self:AddCaret(1, 1)
@@ -1137,17 +1030,25 @@ function Editor:Think()
 		self:ScrollToCaret()
 	end
 	
+	if self.should_refresh then
+		self:Refresh()
+	end
+	
+	if self.should_rebuild then
+		self:Rebuild(true)
+	end
+	
 	self.key_handled = nil
 end
 
 function Editor:Paint(w, h)
-	surface.SetDrawColor(settings.style_data.background)
+	surface.SetDrawColor(self.settings.style_data.background)
 	surface.DrawRect(0, 0, w, h)
 	
 	if self.loading then
 		local p = math.sin(CurTime() * 3) * 50
 		
-		surface.SetDrawColor(settings.style_data.gutter_foreground)
+		surface.SetDrawColor(self.settings.style_data.gutter_foreground)
 		surface.DrawRect(w / 2 - 20 + math.max(p, -30), h / 2 - 1, math.min(50 - math.abs(p) + 20, 40), 2)
 	end
 	
@@ -1157,7 +1058,7 @@ end
 function Editor:OnKeyCodeTyped(key)
 	if key == 0 then return end
 	
-	Syper.IDE:SaveSession()
+	self:FindIDE():SaveSession()
 	
 	local bind = Settings.lookupBind(
 		input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL),
@@ -1185,17 +1086,17 @@ function Editor:OnKeyCodeTyped(key)
 			return
 		elseif key == KEY_UP then
 			ac.selected = ((ac.selected - 2) % #ac.list) + 1
-			ac.scroll = ac.selected == #ac.list and math.max(#ac.list - settings.autocomplete_lines, 0) or math.min(ac.scroll, ac.selected - 1)
+			ac.scroll = ac.selected == #ac.list and math.max(#ac.list - self.settings.autocomplete_lines, 0) or math.min(ac.scroll, ac.selected - 1)
 			
 			self.key_handled = true
 			return
 		elseif key == KEY_DOWN then
 			ac.selected = (ac.selected % #ac.list) + 1
-			ac.scroll = ac.selected == 1 and 0 or math.max(ac.scroll + settings.autocomplete_lines, ac.selected) - settings.autocomplete_lines
+			ac.scroll = ac.selected == 1 and 0 or math.max(ac.scroll + self.settings.autocomplete_lines, ac.selected) - self.settings.autocomplete_lines
 			
 			self.key_handled = true
 			return
-		elseif ((settings.autocomplete_tab and key == KEY_TAB) or (not settings.autocomplete_tab and key == KEY_ENTER)) and not self:HasSelection() then
+		elseif ((self.settings.autocomplete_tab and key == KEY_TAB) or (not self.settings.autocomplete_tab and key == KEY_ENTER)) and not self:HasSelection() then
 			local caret = self.carets[1]
 			local str, len = self.mode.autocomplete(string.sub(self.content_data.lines[caret.y].str, 1, -ac.len - 1), ac.list[ac.selected])
 			self:RemoveStrAt(caret.x, caret.y, -ac.len - len, true)
@@ -1221,7 +1122,7 @@ function Editor:OnKeyCodeTyped(key)
 		end
 	end
 	
-	if Syper.IDE:OnKeyCodeTyped(key) then
+	if self:FindIDE():OnKeyCodeTyped(key) then
 		self.key_handled = true
 	end
 end
@@ -1251,7 +1152,7 @@ function Editor:OnMousePressed(key)
 	
 	self.last_click = RealTime()
 	
-	return Syper.IDE:OnMousePressed(key)
+	return self:FindIDE():OnMousePressed(key)
 end
 
 function Editor:OnMouseReleased(key)
@@ -1273,7 +1174,7 @@ function Editor:OnMouseReleased(key)
 	end
 	self.on_mouse_release = n
 	
-	Syper.IDE:SaveSession()
+	self:FindIDE():SaveSession()
 end
 
 function Editor:OnCursorMoved(x, y)
@@ -1286,12 +1187,12 @@ function Editor:OnMouseWheeled(delta, horizontal)
 	horizontal = horizontal == nil and input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT)
 	
 	if horizontal then
-		self:DoScrollH(-delta * settings.font_size * settings.scroll_multiplier)
+		self:DoScrollH(-delta * self.settings.font_size * self.settings.scroll_multiplier)
 	else
-		self:DoScroll(-delta * settings.font_size * settings.scroll_multiplier)
+		self:DoScroll(-delta * self.settings.font_size * self.settings.scroll_multiplier)
 	end
 	
-	Syper.IDE:SaveSession()
+	self:FindIDE():SaveSession()
 end
 
 function Editor:OnTextChanged()
@@ -1301,13 +1202,13 @@ function Editor:OnTextChanged()
 	local bracket, bracket2 = nil, nil
 	if not self.is_pasted then
 		if self.key_handled then return end
-		if settings.auto_closing_bracket then
+		if self.settings.auto_closing_bracket then
 			bracket = self.mode.bracket[str]
 			bracket2 = self.mode.bracket2[str]
 		end
 	end
 	
-	if ignore_chars[str] then return end
+	if self.ignore_chars[str] then return end
 	if #str == 0 then return end
 	
 	if self:HasSelection() then
@@ -1326,7 +1227,7 @@ function Editor:OnTextChanged()
 				p = s + 1
 			end
 			
-			local cd = Lexer.createContentTable(self.lexer, self.mode)
+			local cd = Lexer.createContentTable(self.lexer, self.mode, self.settings)
 			for y, str in ipairs(lines) do
 				cd:ModifyLine(y, str)
 			end
@@ -1341,16 +1242,16 @@ function Editor:OnTextChanged()
 				local cur_level = 0
 				local s = 1
 				while s do
-					s = string.match(line.str, "^" .. tab_str .. "()", s)
+					s = string.match(line.str, "^" .. self.tab_str .. "()", s)
 					if s then
 						cur_level = cur_level + 1
 					end
 				end
 				
 				if cur_level > line.indent_level then
-					str_tbl[#str_tbl + 1] = sub(line.str, (cur_level - line.indent_level + 1) * tab_strsize)
+					str_tbl[#str_tbl + 1] = self.sub(line.str, (cur_level - line.indent_level + 1) * self.tab_strsize)
 				elseif cur_level < line.indent_level then
-					str_tbl[#str_tbl + 1] = string.rep(tab_str, line.indent_level - cur_level) .. line.str
+					str_tbl[#str_tbl + 1] = string.rep(self.tab_str, line.indent_level - cur_level) .. line.str
 				else
 					str_tbl[#str_tbl + 1] = line.str
 				end
@@ -1373,7 +1274,7 @@ function Editor:OnTextChanged()
 		end
 	else
 		if self.caretinsert then
-			local l = len(str)
+			local l = self.len(str)
 			for caret_id, caret in ipairs(self.carets) do
 				if caret.x < self.content_data:GetLineLength(caret.y) then
 					self:RemoveStrAt(caret.x, caret.y, l, true)
@@ -1383,8 +1284,8 @@ function Editor:OnTextChanged()
 		else
 			for caret_id, caret in ipairs(self.carets) do
 				local line_str = self.content_data:GetLineStr(caret.y)
-				if bracket2 and sub(line_str, caret.x, caret.x) == str then
-					if not bracket2.ignore_char[sub(line_str, caret.x - 1, caret.x - 1)] then
+				if bracket2 and self.sub(line_str, caret.x, caret.x) == str then
+					if not bracket2.ignore_char[self.sub(line_str, caret.x - 1, caret.x - 1)] then
 						self:MoveCaret(caret_id, 1, nil)
 					else
 						self:InsertStrAt(caret.x, caret.y, str, true)
@@ -1398,7 +1299,7 @@ function Editor:OnTextChanged()
 			end
 		end
 		
-		if settings.indent_smart then
+		if self.settings.indent_smart then
 			local lines = self.content_data.lines
 			for caret_id, caret in ipairs(self.carets) do
 				local str = string.match(lines[caret.y].str, "%s*(%a+)[\n%z]")
@@ -1408,7 +1309,7 @@ function Editor:OnTextChanged()
 					
 					local s = 1
 					while s do
-						s = string.match(lines[caret.y].str, "^" .. tab_str .. "()", s)
+						s = string.match(lines[caret.y].str, "^" .. self.tab_str .. "()", s)
 						if s then
 							level = level + 1
 						end
@@ -1418,14 +1319,14 @@ function Editor:OnTextChanged()
 					while s do
 						local sorg = lines[caret.y].scope_origin
 						if sorg == 0 then break end
-						s = string.match(lines[sorg].str, "^" .. tab_str .. "()", s)
+						s = string.match(lines[sorg].str, "^" .. self.tab_str .. "()", s)
 						if s then
 							level_origin = level_origin + 1
 						end
 					end
 					
 					if level > level_origin then
-						self:RemoveStrAt(1, caret.y, tab_strsize * (level - level_origin), true)
+						self:RemoveStrAt(1, caret.y, self.tab_strsize * (level - level_origin), true)
 					end
 				end
 			end
@@ -1448,8 +1349,6 @@ function Editor:OnLoseFocus()
 end
 
 function Editor:PerformLayout(w, h)
-	self:UpdateScrollbar()
-	
 	if self.scrollbar_h.Enabled then
 		self.lineholder_dock:SetPos(self.gutter_size, 0)
 		self.lineholder_dock:SetSize(w - self.gutter_size - 12, h - 32)
@@ -1478,17 +1377,19 @@ function Editor:RequestCapture(yes)
 end
 
 function Editor:UpdateScrollbar()
+	if self.loading then return end
+	
 	local mw = 0
 	for y, line in ipairs(self.content_data.lines) do
 		if not line.fold then
 			mw = math.max(mw, line.render_w)
 		end
 	end
-	mw = mw + settings.font_size * 2
+	mw = mw + self.settings.font_size * 2
 	self.content_render_width = mw
 	
 	local s = self.lineholder_dock:GetTall()
-	local h = s + settings.font_size * (self.content_data:GetUnfoldedLineCount() - 1) + 1
+	local h = s + self.settings.font_size * (self.content_data:GetUnfoldedLineCount() - 1) + 1
 	self.lineholder:SetSize(math.max(self.lineholder_dock:GetWide(), self.content_render_width), h)
 	self.scrollbar:SetUp(s, h)
 	
@@ -1504,13 +1405,13 @@ end
 
 function Editor:UpdateGutter()
 	surface.SetFont("syper_syntax_1")
-	local w = settings.gutter_margin * 2 + surface.GetTextSize(tostring(-self.content_data:GetLineCount()))
+	local w = self.settings.gutter_margin * 2 + surface.GetTextSize(tostring(-self.content_data:GetLineCount()))
 	self.gutter_size = w
 	self.gutter:SetWidth(w)
 end
 
 function Editor:DoScroll(delta)
-	local speed = settings.scroll_speed
+	local speed = self.settings.scroll_speed
 	self.scrolltarget = math.Clamp(self.scrolltarget + delta, 0, self.scrollbar.CanvasSize)
 	if speed == 0 then
 		self.scrollbar:SetScroll(self.scrolltarget)
@@ -1520,7 +1421,7 @@ function Editor:DoScroll(delta)
 end
 
 function Editor:DoScrollH(delta)
-	local speed = settings.scroll_speed
+	local speed = self.settings.scroll_speed
 	self.scrolltarget_h = math.Clamp(self.scrolltarget_h + delta, 0, self.scrollbar_h.CanvasSize)
 	if speed == 0 then
 		self.scrollbar_h:SetScroll(self.scrolltarget_h)
@@ -1546,17 +1447,17 @@ function Editor:OnHScroll(scroll)
 end
 
 function Editor:VisibleLineCount()
-	return math.ceil(self.lineholder_dock:GetTall() / settings.font_size) + 1
+	return math.ceil(self.lineholder_dock:GetTall() / self.settings.font_size) + 1
 end
 
 function Editor:FirstVisibleLine()
-	return math.floor(-select(2, self.lineholder:GetPos()) / settings.font_size) + 1
+	return math.floor(-select(2, self.lineholder:GetPos()) / self.settings.font_size) + 1
 end
 
 function Editor:FirstVisibleLineRender()
 	local lines = self.content_data.lines
 	local y = 0
-	local m = math.floor(-select(2, self.lineholder:GetPos()) / settings.font_size) + 1
+	local m = math.floor(-select(2, self.lineholder:GetPos()) / self.settings.font_size) + 1
 	for ry = 1, #lines do
 		if not lines[ry].fold then
 			y = y + 1
@@ -1610,8 +1511,8 @@ function Editor:SimpleHighlight(str)
 	for y, line in ipairs(self.content_data.lines) do
 		self.highlight[y] = self.highlight[y] or {}
 		for s, st in string.gmatch(line.render_str, pattern) do
-			local s = len(string.sub(line.render_str, 1, s - 1))
-			local e = (s + len(st)) * tw
+			local s = self.len(string.sub(line.render_str, 1, s - 1))
+			local e = (s + self.len(st)) * tw
 			local s = s * tw
 			
 			add(y, {s, 0.1, e, 0.1})
@@ -1665,9 +1566,9 @@ function Editor:Highlight(str, pattern, case, whole, bounds)
 	for i, bound in ipairs(highlight) do
 		local bounds = {}
 		for y = bound.sy, bound.ey do
-			local offset = y == bound.sy and surface.GetTextSize(getRenderString(string.sub(lines[y].str, 1, bound.sx))) or 0
-			local str = getRenderString(string.sub(lines[y].str, y == bound.sy and bound.sx + 1 or 0, y == bound.ey and bound.ex or #lines[y].str))
-			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+			local offset = y == bound.sy and surface.GetTextSize(self:GetRenderString(string.sub(lines[y].str, 1, bound.sx))) or 0
+			local str = self:GetRenderString(string.sub(lines[y].str, y == bound.sy and bound.sx + 1 or 0, y == bound.ey and bound.ex or #lines[y].str))
+			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and self.settings.font_size / 3 or 0)
 			
 			bounds[#bounds + 1] = {x = offset, w = tw, y = y}
 		end
@@ -1805,7 +1706,7 @@ function Editor:SetSessionState(state)
 end
 
 function Editor:GetName()
-	local str = sub(string.match(self.content_data:GetLineStr(1), "%s*([^\n]*)"), 1, 24)
+	local str = self.sub(string.match(self.content_data:GetLineStr(1), "%s*([^\n]*)"), 1, 24)
 	str = #str > 0 and str or nil
 	return self.name or str
 end
@@ -1878,40 +1779,53 @@ function Editor:Refresh()
 	for _, y in ipairs(folds) do
 		self.content_data:FoldLine(y)
 	end
+	
+	self.should_refresh = nil
 end
 
-function Editor:Rebuild()
-	local t = SysTime()
+function Editor:Rebuild(threaded)
+	self.should_rebuild = false
 	
-	local h = settings.font_size
-	for y, _ in pairs(table.Merge(self.content_data:RebuildDirty(256), self.content_data:RebuildTokenPairs())) do
-		local line = {}
-		local offset = 0
-		local line_w = 0
-		for i, token in ipairs(self.content_data:GetLineTokens(y)) do
-			local text = getRenderString(token.str, offset)
-			offset = offset + len(text)
-			local clr = settings.style_data[token.token_override or token.token]
-			local font = "syper_syntax_" .. (token.token_override or token.token)
-			surface.SetFont(font)
-			local w = surface.GetTextSize(text)
-			line_w = line_w + w
-			line[i] = {w, text, font, clr.f, clr.b}
+	local func = function(changes)
+		if not self.settings then return end
+		
+		local h = self.settings.font_size
+		for y, _ in pairs(table.Merge(changes, self.content_data:RebuildTokenPairs())) do
+			local line = {}
+			local offset = 0
+			local line_w = 0
+			for i, token in ipairs(self.content_data:GetLineTokens(y)) do
+				local text = self:GetRenderString(token.str, offset)
+				offset = offset + self.len(text)
+				local clr = self.settings.style_data[token.token_override or token.token]
+				local font = "syper_syntax_" .. (token.token_override or token.token)
+				surface.SetFont(font)
+				local w = surface.GetTextSize(text)
+				line_w = line_w + w
+				line[i] = {w, text, font, clr.f, clr.b}
+			end
+			
+			local l = self.content_data.lines[y]
+			l.render_w = line_w
+			l.render = line
 		end
 		
-		local l = self.content_data.lines[y]
-		l.render_w = line_w
-		l.render = line
+		self.loading = false
+		
+		self:UpdateScrollbar()
+		self:UpdateGutter()
+		self:HandleAutocomplete()
+		
+		for i = 1, #self.carets do
+			self:UpdateCaretInfo(i)
+		end
 	end
 	
-	-- print("rebuild total", SysTime() - t)
-	
-	self:UpdateScrollbar()
-	self:UpdateGutter()
-	self:HandleAutocomplete()
-	
-	for i = 1, #self.carets do
-		self:UpdateCaretInfo(i)
+	if threaded then
+		self.loading = true
+		self.content_data:RebuildDirty(256, func)
+	else
+		func(self.content_data:RebuildDirty(256))
 	end
 end
 
@@ -1942,7 +1856,7 @@ function Editor:SetSyntax(syntax)
 	self.syntax_button:SetText(Mode.modes[syntax].name)
 	
 	local content = self:GetContentStr()
-	self.content_data = Lexer.createContentTable(self.lexer, self.mode)
+	self.content_data = Lexer.createContentTable(self.lexer, self.mode, self.settings)
 	self:SetContent(content)
 end
 
@@ -2040,16 +1954,18 @@ end
 
 function Editor:GetCursorAsCaret()
 	local x, y = self.lineholder_dock:LocalCursorPos()
-	y = math.Clamp(self:GetRealLineY(math.floor((y + self.scrollbar.Scroll) / settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
+	y = math.max(0, y)
+	
+	y = math.Clamp(self:GetRealLineY(math.floor((y + self.scrollbar.Scroll) / self.settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
 	surface.SetFont("syper_syntax_1")
 	local w = surface.GetTextSize(" ")
-	x = renderToRealPos(self.content_data:GetLineStr(y), math.floor(((x + self.scrollbar_h.Scroll) + w / 2) / w) + 1)
+	x = self:RenderToRealPos(self.content_data:GetLineStr(y), math.floor(((x + self.scrollbar_h.Scroll) + w / 2) / w) + 1)
 	
 	return x, y
 end
 
 function Editor:GetCursorAsY()
-	return math.Clamp(self:GetRealLineY(math.floor((select(2, self.lineholder_dock:LocalCursorPos()) + self.scrollbar.Scroll) / settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
+	return math.Clamp(self:GetRealLineY(math.floor((select(2, self.lineholder_dock:LocalCursorPos()) + self.scrollbar.Scroll) / self.settings.font_size) + 1) or math.huge, 1, self.content_data:GetLineCount())
 end
 
 function Editor:AddCaret(x, y, select_x, select_y)
@@ -2133,7 +2049,7 @@ function Editor:SetCaret(i, x, y)
 	self:MarkClearExcessCarets()
 	self:MarkScrollToCaret()
 	self:HandleAutocomplete()
-	-- self:ClearHighlight()
+	self:ClearHighlight()
 end
 
 function Editor:MoveCaret(i, x, y)
@@ -2194,8 +2110,8 @@ function Editor:MoveCaret(i, x, y)
 						-- caret.y = caret.y + 1
 						rawset(caret, "y", caret.y + 1)
 					end
-					-- caret.x = renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x))
-					rawset(caret, "x", renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x)))
+					-- caret.x = self:RenderToRealPos(lines[caret.y].str, self:RealToRenderPos(lines[cy].str, caret.x))
+					rawset(caret, "x", self:RenderToRealPos(lines[caret.y].str, self:RealToRenderPos(lines[cy].str, caret.x)))
 					
 					if caret.y == #lines then break end
 				end
@@ -2207,8 +2123,8 @@ function Editor:MoveCaret(i, x, y)
 					-- caret.y = caret.y - 1
 					rawset(caret, "y", caret.y - 1)
 				end
-				-- caret.x = renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x))
-				rawset(caret, "x", renderToRealPos(lines[caret.y].str, realToRenderPos(lines[cy].str, caret.x)))
+				-- caret.x = self:RenderToRealPos(lines[caret.y].str, self:RealToRenderPos(lines[cy].str, caret.x))
+				rawset(caret, "x", self:RenderToRealPos(lines[caret.y].str, self:RealToRenderPos(lines[cy].str, caret.x)))
 				
 				if caret.y == 1 then break end
 			end
@@ -2220,7 +2136,7 @@ function Editor:MoveCaret(i, x, y)
 	self.caretblink = RealTime()
 	self:MarkClearExcessCarets()
 	self:MarkScrollToCaret()
-	-- self:ClearHighlight()
+	self:ClearHighlight()
 end
 
 function Editor:UpdateCaretInfo(i)
@@ -2259,10 +2175,10 @@ function Editor:UpdateCaretInfo(i)
 		
 		local highlight_str
 		if sy == ey then
-			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-			local substr = sub(lines[sy].str, sx, ex)
-			local str = getRenderStringSelected(substr)
-			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+			local offset = surface.GetTextSize(self:GetRenderString(self.sub(lines[sy].str, 1, sx - 1)))
+			local substr = self.sub(lines[sy].str, sx, ex)
+			local str = self:GetRenderStringSelected(substr)
+			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and self.settings.font_size / 3 or 0)
 			highlight[sy] = {offset, tw, str}
 			highlight_str = str
 			
@@ -2277,21 +2193,21 @@ function Editor:UpdateCaretInfo(i)
 				-- }})
 			end
 		else
-			local offset = surface.GetTextSize(getRenderString(sub(lines[sy].str, 1, sx - 1)))
-			local str = getRenderStringSelected(sub(lines[sy].str, sx))
-			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+			local offset = surface.GetTextSize(self:GetRenderString(self.sub(lines[sy].str, 1, sx - 1)))
+			local str = self:GetRenderStringSelected(self.sub(lines[sy].str, sx))
+			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and self.settings.font_size / 3 or 0)
 			highlight[sy] = {offset, tw, str}
 			highlight_str = str
 			
 			for y = sy + 1, ey - 1 do
-				local str = getRenderStringSelected(lines[y].str)
-				local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+				local str = self:GetRenderStringSelected(lines[y].str)
+				local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and self.settings.font_size / 3 or 0)
 				highlight[y] = {0, tw, str}
 				highlight_str = highlight_str .. str
 			end
 			
-			local str = getRenderStringSelected(sub(lines[ey].str, 1, ex))
-			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and settings.font_size / 3 or 0)
+			local str = self:GetRenderStringSelected(self.sub(lines[ey].str, 1, ex))
+			local tw = surface.GetTextSize(str) + (string.sub(str, #str, #str) == "\n" and self.settings.font_size / 3 or 0)
 			highlight[ey] = {0, tw, str}
 			highlight_str = highlight_str .. str
 		end
@@ -2336,32 +2252,32 @@ function Editor:ScrollToCaret()
 				end
 			end
 			
-			local px = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1)))
-			if px >= -self.lineholder.x and px < -self.lineholder.x + self.lineholder_dock:GetWide() - settings.font_size * 2 then return end
+			local px = surface.GetTextSize(self:GetRenderString(self.sub(self.content_data:GetLineStr(y), 1, x - 1)))
+			if px >= -self.lineholder.x and px < -self.lineholder.x + self.lineholder_dock:GetWide() - self.settings.font_size * 2 then return end
 		end
 	end
 	
 	local caret = self.carets[1]
 	if caret.y <= sy then
-		self.scrolltarget = math.Clamp((self:GetVisualLineY(caret.y) - 1) * settings.font_size, 0, self.scrollbar.CanvasSize)
+		self.scrolltarget = math.Clamp((self:GetVisualLineY(caret.y) - 1) * self.settings.font_size, 0, self.scrollbar.CanvasSize)
 		self.scrollbar:SetScroll(self.scrolltarget)
 	elseif caret.y > ey then
-		self.scrolltarget = math.Clamp(self:GetVisualLineY(caret.y) * settings.font_size - self.lineholder_dock:GetTall(), 0, self.scrollbar.CanvasSize)
+		self.scrolltarget = math.Clamp(self:GetVisualLineY(caret.y) * self.settings.font_size - self.lineholder_dock:GetTall(), 0, self.scrollbar.CanvasSize)
 		self.scrollbar:SetScroll(self.scrolltarget)
 	end
 	
-	local px = surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(caret.y), 1, caret.x - 1)))
+	local px = surface.GetTextSize(self:GetRenderString(self.sub(self.content_data:GetLineStr(caret.y), 1, caret.x - 1)))
 	if px < -self.lineholder.x then
 		self.scrolltarget_h = math.Clamp(px, 0, self.scrollbar_h.CanvasSize)
 		self.scrollbar_h:SetScroll(self.scrolltarget_h)
-	elseif px >= -self.lineholder_dock.x + self.lineholder_dock:GetWide() - settings.font_size * 2 then
-		self.scrolltarget_h = math.Clamp(px - self.lineholder_dock:GetWide() + settings.font_size * 2, 0, self.scrollbar_h.CanvasSize)
+	elseif px >= -self.lineholder_dock.x + self.lineholder_dock:GetWide() - self.settings.font_size * 2 then
+		self.scrolltarget_h = math.Clamp(px - self.lineholder_dock:GetWide() + self.settings.font_size * 2, 0, self.scrollbar_h.CanvasSize)
 		self.scrollbar_h:SetScroll(self.scrolltarget_h)
 	end
 end
 
 function Editor:CharToRenderPos(x, y)
-	return surface.GetTextSize(getRenderString(sub(self.content_data:GetLineStr(y), 1, x - 1))), self:GetVisualLineY(y) * settings.font_size
+	return surface.GetTextSize(self:GetRenderString(self.sub(self.content_data:GetLineStr(y), 1, x - 1))), self:GetVisualLineY(y) * self.settings.font_size
 end
 
 function Editor:HandleAutocomplete()
@@ -2372,11 +2288,11 @@ function Editor:HandleAutocomplete()
 	end
 	
 	if #self.carets > 1 or not self.mode.env then return end
-	if not settings.autocomplete then return end
+	if not self.settings.autocomplete then return end
 	
 	local caret = self.carets[1]
 	local lines = self.content_data.lines
-	local stack = self.mode.autocomplete_stack(sub(lines[caret.y].str, 1, caret.x - 1))
+	local stack = self.mode.autocomplete_stack(self.sub(lines[caret.y].str, 1, caret.x - 1))
 	if stack then
 		local tbl = self.mode.env
 		for i = 1, #stack - 1 do
@@ -2414,11 +2330,11 @@ function Editor:HandleLiveValue()
 	self.livevalue = nil
 	
 	if #self.carets > 1 or not self.mode.env then return end
-	if not settings.livevalueview then return end
+	if not self.settings.livevalueview then return end
 	
 	local caret = self.carets[1]
 	local lines = self.content_data.lines
-	local stack = self.mode.autocomplete_stack(sub(lines[caret.y].str, 1, caret.x - 1))
+	local stack = self.mode.autocomplete_stack(self.sub(lines[caret.y].str, 1, caret.x - 1))
 	if stack then
 		local val = self.mode.env
 		for i = 1, #stack do
@@ -2451,7 +2367,7 @@ function Editor:InsertStrAt(x, y, str, do_history)
 	self:ClearHighlight()
 	
 	if do_history then
-		self:AddHistory({Editor.RemoveStrAt, Editor.InsertStrAt, x, y, len(str), str})
+		self:AddHistory({Editor.RemoveStrAt, Editor.InsertStrAt, x, y, self.len(str), str})
 	end
 	
 	local lines, line_count, p = {}, 0, 1
@@ -2468,14 +2384,14 @@ function Editor:InsertStrAt(x, y, str, do_history)
 		cd:InsertIntoLine(y, lines[1], x)
 	else
 		local o = cd:GetLineStr(y)
-		cd:ModifyLine(y, sub(o, 1, x - 1) .. lines[1])
+		cd:ModifyLine(y, self.sub(o, 1, x - 1) .. lines[1])
 		for y2 = y + 1, y + line_count - 1 do
 			cd:InsertLine(y2, lines[y2 - y + 1])
 		end
-		cd:InsertLine(y + line_count, lines[line_count + 1] .. sub(o, x))
+		cd:InsertLine(y + line_count, lines[line_count + 1] .. self.sub(o, x))
 	end
 	
-	local length = len(str)
+	local length = self.len(str)
 	for caret_id, caret in ipairs(self.carets) do
 		if caret.y == y and caret.x >= x then
 			self:MoveCaret(caret_id, length, nil)
@@ -2485,7 +2401,7 @@ function Editor:InsertStrAt(x, y, str, do_history)
 	end
 	
 	self:MarkClearExcessCarets()
-	Syper.IDE:SaveSession()
+	self:FindIDE():SaveSession()
 end
 
 function Editor:RemoveStr(length)
@@ -2584,14 +2500,14 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 	end
 	
 	self:MarkClearExcessCarets()
-	Syper.IDE:SaveSession()
+	self:FindIDE():SaveSession()
 	
 	local i = 0
 	while length > 0 do
 		if not cd:LineExists(y) then break end
 		
 		local org = cd:GetLineLength(y)
-		rem[#rem + 1] = sub(cd:GetLineStr(y), x, x + length - 1)
+		rem[#rem + 1] = self.sub(cd:GetLineStr(y), x, x + length - 1)
 		cd:RemoveFromLine(y, length, x)
 		local len = cd:GetLineLength(y)
 		length = length - (org - len)
@@ -2625,8 +2541,11 @@ function Editor:RemoveStrAt(x, y, length, do_history)
 end
 
 function Editor:SetContent(str)
+	self:CheckUTF8(str)
+	
 	self.content_data:SetFromString(str)
-	self:Rebuild()
+	-- self:Rebuild(true)
+	self.should_rebuild = true
 	self:MarkClearExcessCarets()
 	self:CheckNameChanged()
 end
@@ -2638,6 +2557,129 @@ end
 
 function Editor:GetContentStr()
 	return self.content_data:GetAsString()
+end
+
+function Editor:GetRenderString(str, offset)
+	local tabsize = self.settings.tab_size
+	local s = ""
+	offset = offset or 0
+	
+	if self.settings.show_control_characters then
+		str =  string.gself.sub(str, "([^%C \t])", function(c) return "<0x" .. string.byte(c) .. ">" end)
+		str =  string.gself.sub(str, "( )", "·")
+		for i = 1, self.len(str) do
+			local c = self.sub(str, i, i)
+			s = s .. (c == "\t" and string.rep("-", tabsize - ((self.len(s) + offset) % tabsize)) or c)
+		end
+		
+		return s
+	end
+	
+	for i = 1, self.len(str) do
+		local c = self.sub(str, i, i)
+		s = s .. (c == "\t" and string.rep(" ", tabsize - ((self.len(s) + offset) % tabsize)) or c)
+	end
+	
+	return s
+end
+
+function Editor:GetRenderStringSelected(str, offset)
+	local tabsize = self.settings.tab_size
+	local s = ""
+	offset = offset or 0
+	str = self.settings.show_control_characters and string.gself.sub(str, "([^%C \t])", function(c) return "<0x" .. string.byte(c) .. ">" end) or str
+	
+	for i = 1, self.len(str) do
+		local c = self.sub(str, i, i)
+		s = s .. (c == "\t" and string.rep("-", tabsize - ((self.len(s) + offset) % tabsize) - 1) .. ">" or (c == " " and "·" or " "))
+	end
+	
+	return s
+end
+
+function Editor:RenderToRealPos(str, pos)
+	local tabsize = self.settings.tab_size
+	local l = 0
+	
+	for i = 1, self.len(str) do
+		local t = self.sub(str, i, i) == "\t"
+		local c = tabsize - (l % tabsize)
+		l = l + (t and c or 1)
+		-- if l >= pos then return i end
+		if (t and (l - math.floor(c / 2 - 0.5)) or l) >= pos then return i end
+	end
+	
+	return self.len(str)
+end
+
+function Editor:RealToRenderPos(str, pos)
+	local tabsize = self.settings.tab_size
+	local l = 0
+	
+	for i = 1, pos - 1 do
+		l = l + (self.sub(str, i, i) == "\t" and tabsize - (l % tabsize) or 1)
+	end
+	
+	return l + 1
+end
+
+function Editor:GetTabStr(x, line)
+	if self.settings.tab_spaces then
+		return string.rep(" ", self.settings.tab_size - ((x - 1) % self.settings.tab_size))
+	elseif self.settings.tab_inline_spaces then
+		if string.match(line, "%s*()") - 1 == x then
+			return "\t"
+		else
+			return string.rep(" ", self.settings.tab_size - ((x - 1) % self.settings.tab_size))
+		end
+	end
+	
+	return "\t"
+end
+
+function Editor:MatchWord(str, x)
+	local s, e = string.match(self.sub(str, 1, x), "()[%w_\128-\255]*$"), string.match(self.sub(str, x), "^[%w_\128-\255]*()") + string.len(self.sub(str, 1, x - 1))
+	
+	if not self.settings.utf8 then
+		return s, e, self.sub(str, s, e)
+	else
+		local word = string.sub(str, s, e - 1)
+		local s = self.len(string.sub(str, 1, s - 1))
+		return s + 1, s + self.len(word) + 1, word
+	end
+end
+
+function Editor:UpdateSettings(settings)
+	settings = table.Copy(settings)
+	self.settings = settings
+	self:CheckUTF8(self:GetContentStr())
+	
+	self.ignore_chars = {}
+	if settings.ignore_chars then
+		for _, c in ipairs(settings.ignore_chars) do
+			self.ignore_chars[c] = true
+		end
+	end
+	
+	if settings.tab_spaces then
+		self.tab_str = string.rep(" ", settings.tab_size)
+		self.tab_strsize = settings.tab_size
+	else
+		self.tab_str = "\t"
+		self.tab_strsize = 1
+	end
+	
+	self.should_refresh = true
+end
+
+function Editor:CheckUTF8(str)
+	if not utf8.len(str) then
+		self.settings.utf8 = false
+	end
+	self.content_data:UpdateSettings(self.settings)
+	
+	self.len = self.settings.utf8 and utf8.len or string.len
+	self.sub = self.settings.utf8 and utf8.sub or string.sub
 end
 
 vgui.Register("SyperEditor", Editor, "SyperBaseTextEntry")
