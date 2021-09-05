@@ -561,11 +561,13 @@ function TabHandler:SetSessionState(state)
 	local w, h = self:GetSize()
 	for i, tab in ipairs(state.tabs or {}) do
 		local panel = vgui.Create(tab.type)
-		local t = self:AddTab(tab.name, panel, i, state.active_tab ~= i)
+		local t = self:AddTab(tab.name, panel, i, true)
 		self:PerformLayoutTab(t, w, h, true)
 		
 		panel:SetSessionState(tab.state)
 	end
+	
+	self:SetActive(state.active_tab)
 end
 
 function TabHandler:ForceMovePanel(panel)
