@@ -117,7 +117,7 @@ Settings.keyid = {
 	"rcontrol",
 	"lwin",
 	"rwin",
-	"app",
+	"contextmenu",
 	"up",
 	"left",
 	"down",

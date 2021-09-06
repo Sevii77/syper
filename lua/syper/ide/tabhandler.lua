@@ -64,8 +64,7 @@ function Tab:OnMousePressed(key)
 		populateLayout(tab.panel)
 	elseif key == MOUSE_RIGHT then
 		-- TODO: make close check if it should prompt save first
-		-- TODO: make not look shit
-		local menu = DermaMenu()
+		local menu = Syper.Menu()
 		menu:AddOption("Close", function()
 			self.handler:RemoveTab(self.handler:GetIndex(self.panel:FindTillParent("SyperTabHandler")))
 		end)

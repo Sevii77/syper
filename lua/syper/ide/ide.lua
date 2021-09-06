@@ -14,6 +14,7 @@ do
 	add("editor.lua", true)
 	add("html.lua", true)
 	add("browser.lua", true)
+	add("menu.lua", true)
 end
 
 if SERVER then return end

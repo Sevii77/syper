@@ -101,8 +101,7 @@ function Node:OnMousePressed(key)
 	end
 	
 	if key == MOUSE_RIGHT then
-		-- TODO: make not look shit
-		local menu = DermaMenu()
+		local menu = Syper.Menu()
 		if self.root_path == "DATA" then
 			if self.is_folder then
 				menu:AddOption("New File", function()

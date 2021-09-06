@@ -47,7 +47,7 @@ return {
 		{"(function)", TOKEN.Keyword_Modifier, "func"},
 		
 		-- function call
-		{"([%a_\128-\255][%w_\128-\255]*)[%w_.]*[%s]?[%(%{\"']", TOKEN.Callable},
+		{"([%a_\128-\255][%w_\128-\255]*)[%w_.]*%s*[%(%{\"']", TOKEN.Callable},
 		
 		-- identifier
 		{"([%a_\128-\255][%w_\128-\255]*)", TOKEN.Identifier},

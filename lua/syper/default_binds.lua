@@ -41,6 +41,9 @@ return [=[{
 	"mouse_1": {"act": "setcaret"},
 	"ctrl+mouse_1": {"act": "setcaret", "args": [true]},
 	
+	"mouse_2": {"act": "contextmenu"},
+	"contextmenu": {"act": "contextmenu", "args": [true]},
+	
 	"backspace": {"act": "delete", "args": ["char", -1]},
 	"delete": {"act": "delete", "args": ["char", 1]},
 	"ctrl+backspace": {"act": "delete", "args": ["word", -1]},

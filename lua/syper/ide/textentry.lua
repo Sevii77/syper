@@ -103,7 +103,7 @@ end
 function TextEntry:OpenAutoComplete(tbl)
 	if not tbl or #tbl == 0 then return end
 	
-	self.Menu = DermaMenu()
+	self.Menu = Syper.Menu()
 	for _, str in ipairs(tbl) do
 		self.Menu:AddOption(str, function() self:AutoCompleteSelect(str) end)
 	end

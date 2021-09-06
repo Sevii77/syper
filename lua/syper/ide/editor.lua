@@ -89,6 +89,13 @@ function Act.cut(self)
 	
 	if self:HasSelection() then
 		self:RemoveSelection()
+	else
+		for caret_id, caret in ipairs(self.carets) do
+			self:RemoveStrAt(1, caret.y, self.content_data:GetLineLength(caret.y), true)
+		end
+		
+		self:PushHistoryBlock()
+		self:Rebuild()
 	end
 	
 	self:CheckNameChanged()
@@ -372,6 +379,43 @@ function Act.setcaret(self, new)
 	end}
 	
 	self.caretblink = RealTime()
+end
+
+function Act.contextmenu(self, caret)
+	local menu = Syper.Menu()
+	menu:AddOption("Cut", function()
+		self.Act.cut(self)
+	end)
+	menu:AddOption("Copy", function()
+		self.Act.copy(self)
+	end)
+	menu:AddSpacer()
+	menu:AddOption("Select All", function()
+		self.Act.selectall(self)
+	end)
+	menu:AddSpacer()
+	menu:AddOption("Comment Lines", function()
+		self.Act.comment(self)
+	end)
+	menu:AddSpacer()
+	menu:AddOption("Indent", function()
+		self.Act.indent(self)
+	end)
+	menu:AddOption("Outdent", function()
+		self.Act.outdent(self)
+	end)
+	menu:AddOption("Reindent File", function()
+		self.Act.reindent_file(self)
+	end)
+	
+	local x, y
+	if caret then
+		x, y = self:CharToRenderPos(self.carets[1].x, self.carets[1].y)
+		xg, yg = self:PosGlobal()
+		x = x + xg + self.gutter_size
+		y = y + yg
+	end	
+	menu:Open(x, y)
 end
 
 function Act.writestr(self, str)
@@ -692,7 +736,7 @@ function Editor:Init()
 	self.syntax_button:Dock(RIGHT)
 	self.syntax_button.DoClick = function(_)
 		-- TODO: make look better
-		local menu = DermaMenu()
+		local menu = Syper.Menu()
 		for syntax, mode in pairs(Mode.modes) do
 			menu:AddOption(mode.name, function()
 				self:SetSyntax(syntax)
@@ -2277,6 +2321,7 @@ function Editor:ScrollToCaret()
 end
 
 function Editor:CharToRenderPos(x, y)
+	surface.SetFont("syper_syntax_1")
 	return surface.GetTextSize(self:GetRenderString(self.sub(self.content_data:GetLineStr(y), 1, x - 1))), self:GetVisualLineY(y) * self.settings.font_size
 end
 
@@ -2405,7 +2450,6 @@ function Editor:InsertStrAt(x, y, str, do_history)
 end
 
 function Editor:RemoveStr(length)
-	local history = {}
 	for caret_id, caret in ipairs(self.carets) do
 		self:RemoveStrAt(caret.x, caret.y, length, true)
 	end
@@ -2565,11 +2609,11 @@ function Editor:GetRenderString(str, offset)
 	offset = offset or 0
 	
 	if self.settings.show_control_characters then
-		str =  string.gself.sub(str, "([^%C \t])", function(c) return "<0x" .. string.byte(c) .. ">" end)
-		str =  string.gself.sub(str, "( )", "·")
+		str =  string.gsub(str, "([^%C \t])", function(c) return "<0x" .. string.byte(c) .. ">" end)
+		str =  string.gsub(str, "( )", "·")
 		for i = 1, self.len(str) do
 			local c = self.sub(str, i, i)
-			s = s .. (c == "\t" and string.rep("-", tabsize - ((self.len(s) + offset) % tabsize)) or c)
+			s = s .. (c == "\t" and string.rep("-", tabsize - ((self.len(s) + offset) % tabsize) - 1) .. ">" or c)
 		end
 		
 		return s
@@ -2587,7 +2631,7 @@ function Editor:GetRenderStringSelected(str, offset)
 	local tabsize = self.settings.tab_size
 	local s = ""
 	offset = offset or 0
-	str = self.settings.show_control_characters and string.gself.sub(str, "([^%C \t])", function(c) return "<0x" .. string.byte(c) .. ">" end) or str
+	str = self.settings.show_control_characters and string.gsub(str, "([^%C \t])", function(c) return "<0x" .. string.byte(c) .. ">" end) or str
 	
 	for i = 1, self.len(str) do
 		local c = self.sub(str, i, i)
