@@ -21,7 +21,7 @@ function Menu:AddOption(...)
 	pnl.Paint = function(s, w, h)
 		if s.Hovered then
 			surface.SetDrawColor(settings.style_data.gutter_foreground)
-			surface.DrawRect(0, 0, w, h)
+			surface.DrawRect(2, 2, w - 4, h - 4)
 			
 			surface.SetTextColor(settings.style_data.ide_foreground)
 		else

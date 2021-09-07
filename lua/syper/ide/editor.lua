@@ -384,28 +384,28 @@ end
 function Act.contextmenu(self, caret)
 	local menu = Syper.Menu()
 	menu:AddOption("Cut", function()
-		self.Act.cut(self)
+		Act.cut(self)
 	end)
 	menu:AddOption("Copy", function()
-		self.Act.copy(self)
+		Act.copy(self)
 	end)
 	menu:AddSpacer()
 	menu:AddOption("Select All", function()
-		self.Act.selectall(self)
+		Act.selectall(self)
 	end)
 	menu:AddSpacer()
 	menu:AddOption("Comment Lines", function()
-		self.Act.comment(self)
+		Act.comment(self)
 	end)
 	menu:AddSpacer()
 	menu:AddOption("Indent", function()
-		self.Act.indent(self)
+		Act.indent(self)
 	end)
 	menu:AddOption("Outdent", function()
-		self.Act.outdent(self)
+		Act.outdent(self)
 	end)
 	menu:AddOption("Reindent File", function()
-		self.Act.reindent_file(self)
+		Act.reindent_file(self)
 	end)
 	
 	local x, y
@@ -764,7 +764,7 @@ function Editor:Init()
 		
 		local y = self:GetCursorAsY()
 		local line = self.content_data.lines[y]
-		if line.foldable then
+		if line.foldable or line.folded then
 			if line.folded then
 				self.content_data:UnfoldLine(y)
 			else
@@ -799,7 +799,7 @@ function Editor:Init()
 				surface.SetTextPos(w - tw - self.settings.gutter_margin, offset_y)
 				surface.DrawText(linenum)
 				
-				if line.foldable then
+				if line.foldable or line.folded then
 					-- local str = line.folded and "+" or "-"
 					-- local tw = surface.GetTextSize(str)
 					-- surface.SetTextPos(w - tw - 2, offset_y - 1)
@@ -1256,7 +1256,7 @@ function Editor:OnTextChanged()
 	if #str == 0 then return end
 	
 	if self:HasSelection() then
-		self:RemoveSelection()
+		self:RemoveSelection(true)
 	end
 	
 	if self.is_pasted then
@@ -1536,6 +1536,8 @@ function Editor:GetRealLineY(y)
 end
 
 function Editor:ClearHighlight()
+	ide = self:FindIDE()
+	if ide.menu_replace:IsVisible() or ide.menu_find:IsVisible() then return end
 	self.highlight_finds = nil
 	self.highlight_bounds = nil
 	self.highlight = {}

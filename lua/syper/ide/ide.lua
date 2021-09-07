@@ -732,7 +732,7 @@ function IDE:Init()
 			if not validFocus() then return end
 			
 			nxt:DoClick()
-			self.old_focus:RemoveSelection()
+			self.old_focus:RemoveSelection(true)
 			self.old_focus:InsertStr(self.menu_replace.replace:GetValue())
 			
 			local caret = self.old_focus.carets[1]
